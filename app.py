@@ -1,22 +1,20 @@
-
 """
 app.py
 ======
-Main Flask application for the Placement Preparation
-and Skill Gap Analysis System.
+Main Flask application for the Placement Preparation and Skill Gap Analysis System.
 
-Responsibilities:
-- Create and configure the Flask application.
-- Initialize the shared SQLite database.
-- Serve the home page.
-- Serve the assessment, planner, and progress pages.
+This file is the shared foundation. It only:
+  * creates the Flask app and the database tables,
+  * serves the Home page,
+  * serves PLACEHOLDER pages for the three modules.
 
-Team modules:
-    Member 1 -> Skill Assessment and Skill Gap Analysis
-    Member 2 -> Preparation Planner
-    Member 3 -> Progress Tracking and Charts
+The real features are NOT implemented here. Each team member builds one module:
 
-Run:
+    Member 1 -> Skill Assessment and Skill Gap Analysis   (assessment.py)
+    Member 2 -> Preparation Planner                       (planner.py)
+    Member 3 -> Progress Tracking and Charts              (progress.py)
+
+Run the app:
     python app.py
 """
 
@@ -25,30 +23,25 @@ import os
 from flask import Flask, render_template
 
 from database import DEFAULT_DB_PATH, init_db
+from modules import assessment as assessment_module  # Member 1's feature
 
-
-# Information displayed on the home page and module pages.
+# Information shown on the home page and on the placeholder pages.
+# When a module is finished, set "ready" to True (see the README for the steps).
 MODULES = {
     "assessment": {
         "title": "Skill Assessment",
         "icon": "🧠",
         "member": "Member 1",
-        "summary": (
-            "Assess your aptitude, coding, technical and HR skills "
-            "and identify your skill gaps."
-        ),
+        "summary": "Assess your aptitude, coding, technical and HR skills and see your skill gaps.",
         "endpoint": "assessment_page",
         "module_file": "assessment.py",
-        "ready": False,
+        "ready": True,
     },
     "planner": {
         "title": "Preparation Planner",
         "icon": "🗓️",
         "member": "Member 2",
-        "summary": (
-            "Turn your skill gaps into a preparation plan "
-            "with tasks and deadlines."
-        ),
+        "summary": "Turn your skill gaps into a study plan with tasks and deadlines.",
         "endpoint": "planner_page",
         "module_file": "planner.py",
         "ready": False,
@@ -57,10 +50,7 @@ MODULES = {
         "title": "Progress Tracking",
         "icon": "📈",
         "member": "Member 3",
-        "summary": (
-            "Track practice results and task completion "
-            "with progress charts."
-        ),
+        "summary": "Track practice results and task completion with charts.",
         "endpoint": "progress_page",
         "module_file": "progress.py",
         "ready": False,
@@ -70,81 +60,59 @@ MODULES = {
 
 def create_app(config=None):
     """
-    Create and configure the Flask application.
-
-    An optional dictionary allows custom settings for tests.
-
-    Example:
-        app = create_app({
-            "TESTING": True,
-            "DATABASE": "test.db",
-        })
+    Application factory. Tests can pass their own settings, for example:
+        create_app({"TESTING": True, "DATABASE": "test.db"})
     """
     app = Flask(__name__)
 
-    app.config["SECRET_KEY"] = os.environ.get(
-        "SECRET_KEY",
-        "dev-only-change-me",
-    )
-
+    # SECRET_KEY signs sessions and flash messages. For real use, set the
+    # SECRET_KEY environment variable. Never commit real secrets to Git.
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
     app.config["DATABASE"] = DEFAULT_DB_PATH
-
     if config:
         app.config.update(config)
 
-    # Initialize the database tables.
+    # Create the shared tables when the app starts (does nothing if they exist).
     init_db(app.config["DATABASE"])
 
-    # Register all application routes.
     register_routes(app)
-
     return app
 
 
 def register_routes(app):
-    """Register the routes used by the application."""
+    """All page routes live here to keep create_app() short and readable."""
 
     @app.context_processor
     def inject_modules():
-        """Make module information available to every template."""
+        # Makes "modules" available in every template (used by the navbar).
         return {"modules": MODULES}
 
     @app.route("/")
     def index():
-        """Display the home page."""
         return render_template("index.html")
 
-    @app.route("/assessment")
+    # ------------------------------------------------------------------
+    # Placeholder routes. Each one only shows a "coming soon" page.
+    # When a module is ready, replace the body with a call to that module
+    # (or register the module's Blueprint) - see README.md.
+    # ------------------------------------------------------------------
+    @app.route("/assessment", methods=["GET", "POST"])
     def assessment_page():
-        """Display the skill assessment page."""
-        return render_template(
-            "assessment.html",
-            module=MODULES["assessment"],
-        )
+        # Member 1: all the work is done in modules/assessment.py.
+        # GET shows the form or a result, POST validates and saves the form.
+        return assessment_module.handle_assessment_request(app.config["DATABASE"])
 
     @app.route("/planner")
     def planner_page():
-        """Display the preparation planner page."""
-        return render_template(
-            "planner.html",
-            module=MODULES["planner"],
-        )
+        # TODO (Member 2): call the planner module here.
+        return render_template("placeholder.html", module=MODULES["planner"])
 
     @app.route("/progress")
     def progress_page():
-        """Display the progress tracking page."""
-        return render_template(
-            "progress.html",
-            module=MODULES["progress"],
-        )
+        # TODO (Member 3): call the progress module here.
+        return render_template("placeholder.html", module=MODULES["progress"])
 
 
+# "python app.py" starts the development server.
 if __name__ == "__main__":
-    app = create_app()
-
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=False,
-        use_reloader=False,
-    )
+    create_app().run(debug=True)

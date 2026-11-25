@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{#
+  placeholder.html
+  ----------------
+  Shown for modules that are still under development (Planner and Progress).
+  app.py passes one variable called "module" (a dictionary). The fields used here:
+      title        - the module name                       (used if available)
+      description  - a longer text                         (used if available)
+      summary      - the short text app.py actually sets   (used when there is no description)
+      icon, member, module_file - optional extra details
+  Every field is optional, so the page still works if one is missing.
+  Jinja escapes all values automatically, so special characters are safe.
+#}
+
+{% block title %}{{ module.title if module and module.title else 'Coming Soon' }} - Placement Preparation System{% endblock %}
+
+{% block content %}
+{% set page_title = module.title if module and module.title else 'This feature' %}
+{% set page_text = (module.description or module.summary) if module else None %}
+
+<div class="card shadow-sm">
+  <div class="card-body text-center p-5">
+
+    {% if module and module.icon %}
+    <div class="display-3" aria-hidden="true">{{ module.icon }}</div>
+    {% endif %}
+
+    <h1 class="h2 mt-2">{{ page_title }}</h1>
+    <span class="badge text-bg-warning mb-3">🚧 Under development</span>
+
+    {% if page_text %}
+    <p class="lead text-muted">{{ page_text }}</p>
+    {% endif %}
+
+    <div class="alert alert-info d-inline-block text-start mb-4" role="alert">
+      <strong>{{ page_title }} is under development.</strong>
+      This feature is not available yet. Please check back soon!
+      {% if module and module.member %}
+      <br>
+      <small>Being built by <strong>{{ module.member }}</strong>{% if module.module_file %}
+        in <code>{{ module.module_file }}</code>{% endif %}.</small>
+      {% endif %}
+    </div>
+
+    <div>
+      <a href="{{ url_for('index') }}" class="btn btn-outline-primary">&larr; Back to Home</a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

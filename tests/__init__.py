@@ -1,0 +1,1 @@
+"""Makes 'tests' a package so pytest can import app.py and modules/ from the project root."""

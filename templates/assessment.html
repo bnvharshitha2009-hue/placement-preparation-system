@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Skill Assessment - Placement Preparation System{% endblock %}
+
+{% block content %}
+
+{# General error (for example a database problem or an unknown student) #}
+{% if general_error %}
+<div class="alert alert-danger" role="alert">{{ general_error }}</div>
+{% endif %}
+
+
+{# ======================= VIEW 1: THE RATING FORM ======================= #}
+{% if view == 'form' %}
+
+<div class="mb-4">
+  <h1 class="h2 fw-bold">🧠 Skill Assessment</h1>
+  <p class="text-muted mb-0">
+    Rate your own skills in four areas. Be honest - your skill gaps show you what to improve first.
+  </p>
+</div>
+
+{# List every validation error at the top so nothing is missed #}
+{% if errors %}
+<div class="alert alert-danger" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul class="mb-0">
+    {% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# Rating scale explanation #}
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">How to rate yourself (1 to 5)</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <tbody>
+        {% for s in rating_scale %}
+        <tr>
+          <td class="text-center fw-bold" style="width: 3rem;">{{ s.value }}</td>
+          <td class="fw-semibold" style="width: 9rem;">{{ s.label }}</td>
+          <td class="text-muted">{{ s.meaning }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('assessment_page') }}" novalidate>
+
+  {# Student details (needed to link the assessment to a student) #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold">Your details</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="name">Full name</label>
+          <input type="text" id="name" name="name" maxlength="100"
+                 class="form-control {{ 'is-invalid' if errors.get('name') }}"
+                 value="{{ form.get('name', '') }}">
+          {% if errors.get('name') %}<div class="invalid-feedback">{{ errors.get('name') }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="email">Email</label>
+          <input type="email" id="email" name="email" maxlength="254"
+                 class="form-control {{ 'is-invalid' if errors.get('email') }}"
+                 value="{{ form.get('email', '') }}">
+          {% if errors.get('email') %}<div class="invalid-feedback">{{ errors.get('email') }}</div>{% endif %}
+        </div>
+        <div class="col-md-8">
+          <label class="form-label" for="branch">Branch / Department</label>
+          <input type="text" id="branch" name="branch" maxlength="100" placeholder="e.g. CSE"
+                 class="form-control {{ 'is-invalid' if errors.get('branch') }}"
+                 value="{{ form.get('branch', '') }}">
+          {% if errors.get('branch') %}<div class="invalid-feedback">{{ errors.get('branch') }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="year">Year of study</label>
+          <select id="year" name="year" class="form-select {{ 'is-invalid' if errors.get('year') }}">
+            <option value="">Select</option>
+            {% for y in ['1', '2', '3', '4'] %}
+            <option value="{{ y }}" {% if form.get('year') == y %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          {% if errors.get('year') %}<div class="invalid-feedback">{{ errors.get('year') }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# One card per skill category #}
+  {% for c in categories %}
+  {% set field = 'rating_' ~ c.key %}
+  <div class="card shadow-sm mb-3 {{ 'border-danger' if errors.get(field) }}">
+    <div class="card-body">
+      <h2 class="h5 fw-bold mb-1">{{ c.label }}</h2>
+      <p class="text-muted small mb-3">{{ c.description }}</p>
+
+      <div class="d-flex flex-wrap gap-2">
+        {% for s in rating_scale %}
+        <div>
+          <input type="radio" class="btn-check" name="{{ field }}" id="{{ field }}_{{ s.value }}"
+                 value="{{ s.value }}" {% if form.get(field) == s.value|string %}checked{% endif %}>
+          <label class="btn btn-outline-primary" for="{{ field }}_{{ s.value }}">
+            {{ s.value }} &middot; {{ s.label }}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if errors.get(field) %}
+      <div class="text-danger small mt-2">{{ errors.get(field) }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="text-center my-4">
+    <button type="submit" class="btn btn-primary btn-lg px-5">Calculate my skill gaps</button>
+  </div>
+</form>
+
+
+{# ===================== VIEW 2: THE RESULT PAGE ===================== #}
+{% elif view == 'result' %}
+
+<div class="mb-4">
+  <h1 class="h2 fw-bold">📊 Your Skill Gap Results</h1>
+  <p class="mb-0">
+    <strong>{{ result.student.name }}</strong>
+    <span class="text-muted">&middot; {{ result.student.branch }}, Year {{ result.student.year }}
+      &middot; {{ result.student.email }}</span>
+  </p>
+  <p class="text-muted small">Assessed on {{ result.assessed_at[:19] }} &middot; Average rating {{ result.average_rating }} / 5</p>
+</div>
+
+{# Ratings and gaps #}
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">Ratings and skill gaps</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Category</th>
+          <th style="min-width: 12rem;">Your rating</th>
+          <th class="text-center">Skill gap<br><small class="text-muted fw-normal">(5 - rating)</small></th>
+          <th>Priority</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in result.results %}
+        <tr>
+          <td class="fw-semibold">{{ r.label }}</td>
+          <td>
+            <div class="progress" style="height: 10px;" role="progressbar"
+                 aria-label="{{ r.label }} rating" aria-valuenow="{{ r.rating }}" aria-valuemin="0" aria-valuemax="5">
+              <div class="progress-bar" style="width: {{ r.rating * 20 }}%"></div>
+            </div>
+            <small class="text-muted">{{ r.rating }} / 5 &middot; {{ r.rating_label }}</small>
+          </td>
+          <td class="text-center fs-5 fw-bold">{{ r.gap }}</td>
+          <td><span class="badge text-bg-{{ r.badge }}">{{ r.priority }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Improvement priorities: biggest gap first #}
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">🚀 Improvement priorities (work on these first)</div>
+  {% set to_improve = result.results | selectattr('gap', 'gt', 0) | sort(attribute='priority_rank') | list %}
+  {% if to_improve %}
+  <ol class="list-group list-group-flush list-group-numbered">
+    {% for r in to_improve %}
+    <li class="list-group-item d-flex justify-content-between align-items-start">
+      <div class="ms-2 me-auto">
+        <div class="fw-semibold">{{ r.label }}</div>
+        <small class="text-muted">{{ r.hint }}</small>
+      </div>
+      <span class="badge text-bg-{{ r.badge }}">{{ r.priority }} &middot; gap {{ r.gap }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="card-body text-success">Excellent! You rated yourself 5 in every category - no skill gaps.</div>
+  {% endif %}
+</div>
+
+<p class="text-muted small">
+  Priority guide: gap 3-4 = High, gap 2 = Medium, gap 1 = Low, gap 0 = no gap.
+  These are your own ratings, so rate yourself honestly for useful results.
+</p>
+
+<div class="text-center mb-4">
+  <a class="btn btn-primary" href="{{ url_for('assessment_page') }}">Take the assessment again</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Back to Home</a>
+</div>
+
+{% endif %}
+{% endblock %}

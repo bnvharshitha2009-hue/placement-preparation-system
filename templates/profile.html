@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile - PLACEMENT HUB{% endblock %}
+
+{% block content %}
+
+<div class="mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div>
+    <h1 class="h2 fw-bold mb-1">👤 <span class="text-gradient">User Profile &amp; Streak</span></h1>
+    <p class="text-muted mb-0">
+      Track your verified university identity, linked placement assessments, and daily login consistency.
+    </p>
+  </div>
+  {% if user %}
+  <a href="{{ url_for('login_page') }}" class="btn btn-outline-primary">
+    Account Settings &amp; Verification
+  </a>
+  {% endif %}
+</div>
+
+{% if not user %}
+<div class="card hero-card text-center p-5">
+  <div class="display-4 mb-3">🔐</div>
+  <h2 class="h4 fw-bold mb-2">No Active User Logged In</h2>
+  <p class="text-muted mx-auto mb-4" style="max-width: 520px;">
+    Sign in with your Gmail address and verify your University Name to view your profile, unlock daily streak tracking, and sync your Skill Assessment &amp; Planner.
+  </p>
+  <div>
+    <a href="{{ url_for('login_page') }}" class="btn btn-primary btn-lg px-4">
+      Login with Gmail &amp; University &rarr;
+    </a>
+  </div>
+</div>
+{% else %}
+
+<div class="row g-4 mb-4">
+  <!-- Identity Card -->
+  <div class="col-lg-5">
+    <div class="card hero-card h-100">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>Signed-In Identity</span>
+        {% if user.status == 'verified' %}
+        <span class="badge text-bg-success">Verified</span>
+        {% else %}
+        <span class="badge text-bg-warning">Pending Verification</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div class="profile-avatar-lg position-relative">
+            <span>{{ user.initials }}</span>
+            <span class="profile-notif-dot {{ 'dot-verified' if user.status == 'verified' else 'dot-pending' }}"></span>
+          </div>
+          <div class="min-w-0">
+            <h2 class="h5 fw-bold mb-0 text-truncate">{{ user.full_name }}</h2>
+            <div class="small text-gradient text-truncate">{{ user.gmail }}</div>
+            <div class="small text-muted text-truncate">{{ user.university_name }}</div>
+          </div>
+        </div>
+
+        <div class="stat-box mb-3 small">
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">University Status</span>
+            <span class="fw-semibold">{{ 'Verified' if user.status == 'verified' else 'Pending OTP / Link' }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 border-top" style="border-color: var(--border-subtle) !important;">
+            <span class="text-muted">Last Active Day</span>
+            <span class="fw-semibold">{{ user.last_login_date or 'Pending verification' }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 border-top" style="border-color: var(--border-subtle) !important;">
+            <span class="text-muted">Linked Assessment</span>
+            <span class="fw-semibold">{{ 'Linked (ID #' ~ user.student_id ~ ')' if user.student_id else 'Not completed yet' }}</span>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('assessment_page', student=user.student_id) if user.student_id else url_for('assessment_page') }}"
+             class="btn btn-primary btn-sm px-3">
+            {% if user.student_id %}View Assessment{% else %}Start Assessment{% endif %}
+          </a>
+          <a href="{{ url_for('planner_page', student=user.student_id) if user.student_id else url_for('planner_page') }}"
+             class="btn btn-outline-primary btn-sm px-3">
+            Open Planner
+          </a>
+          <form method="post" action="{{ url_for('logout_page') }}" class="d-inline ms-auto">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Sign Out</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Consistency Streak Bar Card -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>🔥 Consistency Streak Tracker</span>
+        {% if user.is_consistent %}
+        <span class="badge text-bg-success">Consistent!</span>
+        {% elif user.current_streak == 1 %}
+        <span class="badge text-bg-info">Day 1 Started</span>
+        {% else %}
+        <span class="badge text-bg-secondary">Verify to Start</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3 mb-4 text-center">
+          <div class="col-4">
+            <div class="stat-box h-100">
+              <div class="stat-value text-gradient">{{ user.current_streak }}</div>
+              <div class="stat-label mt-1">Current Streak</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="stat-box h-100">
+              <div class="stat-value">{{ user.best_streak }}</div>
+              <div class="stat-label mt-1">Best Streak</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="stat-box h-100">
+              <div class="stat-value">{{ user.total_login_days }}</div>
+              <div class="stat-label mt-1">Active Days</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small mb-2">
+            <span class="fw-semibold">7-Day Consistency Bar</span>
+            <span class="text-muted">{{ user.current_streak }} / {{ user.streak_goal }} days ({{ user.streak_pct }}%)</span>
+          </div>
+          <div class="progress profile-streak-progress" role="progressbar"
+               aria-label="Login consistency streak" aria-valuenow="{{ user.streak_pct }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar streak-bar-fill {{ 'is-consistent' if user.is_consistent }}"
+                 style="width: {{ user.streak_pct }}%;"></div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
+          {% for m in milestones %}
+          <div class="streak-day-chip {{ 'reached' if m.reached }}">
+            <span class="d-block fs-6">{{ '🔥' if m.reached else '○' }}</span>
+            <span class="small">Day {{ m.day }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if assessment %}
+<div class="card">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span>Latest Skill Assessment Snapshot</span>
+    <span class="small text-muted">Assessed {{ assessment.assessed_at[:16] }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for r in assessment.results %}
+      <div class="col-sm-6 col-lg-3">
+        <div class="stat-box h-100">
+          <div class="fw-semibold mb-1">{{ r.label }}</div>
+          <div class="small text-muted mb-1">
+            Level {{ r.rating }} / 5 {% if r.score_percent is not none %}({{ r.score_percent }}%){% endif %}
+          </div>
+          <span class="badge text-bg-{{ r.badge }}">{{ r.priority }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

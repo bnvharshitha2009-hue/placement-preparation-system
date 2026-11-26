@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Placement Preparation System{% endblock %}</title>
+  <title>{% block title %}PLACEMENT HUB{% endblock %}</title>
 
   <!-- Plus Jakarta Sans font for modern portfolio aesthetic -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,67 +15,302 @@
   <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
   {% block extra_css %}{% endblock %}
 </head>
-<body class="d-flex flex-column min-vh-100">
+<body class="app-shell">
 
-  <!-- Navigation bar (shown on every page).
+  <!-- Vertical left sidebar navigation (shown on every page; collapses cleanly on mobile).
        The link targets are the route names that exist in app.py:
-       index, assessment_page, planner_page, progress_page -->
-  <nav class="navbar navbar-expand-lg navbar-dark portfolio-navbar sticky-top">
-    <div class="container">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-        <span>🎯</span>
-        <span class="text-gradient">Placement Prep</span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-              data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false"
-              aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto align-items-lg-center">
+       index, assessment_page, planner_page, progress_page, login_page -->
+  <nav class="navbar navbar-expand-lg navbar-dark portfolio-navbar portfolio-sidebar">
+    <div class="sidebar-inner d-flex flex-column w-100 h-100">
+      <div class="d-flex align-items-center justify-content-between w-100 sidebar-brand-row">
+        <a class="navbar-brand fw-bold d-flex align-items-center mb-0" href="{{ url_for('index') }}">
+          <span class="text-gradient">PLACEMENT HUB</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false"
+                aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+      </div>
+
+      <div class="collapse navbar-collapse flex-column align-items-stretch w-100 mt-3 mt-lg-4" id="mainNav">
+        <div class="small text-uppercase text-muted fw-semibold px-2 mb-2 d-none d-lg-block" style="letter-spacing: 0.08em; font-size: 0.72rem;">
+          Navigation
+        </div>
+        <ul class="navbar-nav flex-column w-100 gap-1">
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'index' }}"
-               href="{{ url_for('index') }}">Home</a>
+               href="{{ url_for('index') }}">
+              <span>🏠</span><span>Home</span>
+            </a>
           </li>
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'assessment_page' }}"
-               href="{{ url_for('assessment_page') }}">Skill Assessment</a>
+               href="{{ url_for('assessment_page') }}">
+              <span>🧠</span><span>Skill Assessment</span>
+            </a>
           </li>
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'planner_page' }}"
-               href="{{ url_for('planner_page') }}">Preparation Planner</a>
+               href="{{ url_for('planner_page') }}">
+              <span>🗓️</span><span>Preparation Planner</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {{ 'active' if request.endpoint == 'practice_page' }}"
+               href="{{ url_for('practice_page') }}">
+              <span>📝</span><span>Practice &amp; Test Schedule</span>
+            </a>
           </li>
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'progress_page' }}"
-               href="{{ url_for('progress_page') }}">Progress Dashboard</a>
+               href="{{ url_for('progress_page') }}">
+              <span>📈</span><span>Progress Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {{ 'active' if request.endpoint == 'profile_page' }}"
+               href="{{ url_for('profile_page') }}">
+              <span>👤</span><span>User Profile</span>
+            </a>
           </li>
         </ul>
+
+        <div class="mt-3 mt-lg-auto pt-3 border-top w-100" style="border-color: var(--border-subtle) !important;">
+          {% if current_user %}
+          <a class="sidebar-account-card d-block text-decoration-none mb-2 {{ 'active' if request.endpoint in ['login_page', 'verify_page'] }}"
+             href="{{ url_for('login_page') }}"
+             title="{{ current_user.university_name }}">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+              <span class="small fw-semibold text-white text-truncate">{{ current_user.gmail }}</span>
+              {% if current_user.status == 'verified' %}
+              <span class="badge text-bg-success">Verified</span>
+              {% else %}
+              <span class="badge text-bg-warning">Pending</span>
+              {% endif %}
+            </div>
+            <div class="small text-muted text-truncate">{{ current_user.university_name }}</div>
+          </a>
+          <form method="post" action="{{ url_for('logout_page') }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Logout</button>
+          </form>
+          {% else %}
+          <a class="btn btn-sm btn-outline-primary w-100 {{ 'active' if request.endpoint in ['login_page', 'verify_page'] }}"
+             href="{{ url_for('login_page') }}">🔐 Login</a>
+          {% endif %}
+        </div>
       </div>
     </div>
   </nav>
 
-  <!-- Flash messages (success / error notices) -->
-  <div class="container mt-3">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category if category in ['success', 'danger', 'warning', 'info'] else 'info' }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  <div class="app-content-shell d-flex flex-column min-vh-100">
+    <!-- Top-Right Profile & Streak Notification Bar -->
+    <header class="topbar-profile-bar">
+      <div class="container d-flex justify-content-end align-items-center flex-wrap gap-3">
+        <!-- Consistency Streak Bar -->
+        <a id="streak-bar-widget"
+           href="{{ url_for('profile_page') if current_user else url_for('login_page') }}"
+           class="streak-bar-pill text-decoration-none {% if current_user and current_user.is_consistent %}is-consistent{% endif %}"
+           title="Daily Login Consistency Streak">
+          <span id="streak-bar-emoji" class="streak-bar-emoji">
+            {% if current_user and current_user.current_streak >= 2 %}🔥{% elif current_user and current_user.current_streak == 1 %}🌱{% else %}🔥{% endif %}
+          </span>
+          <div class="streak-bar-meta">
+            <div class="d-flex align-items-center gap-2">
+              <span class="small fw-bold text-white" id="streak-bar-count">
+                {% if current_user %}{{ current_user.current_streak }}d Streak{% else %}Start Streak{% endif %}
+              </span>
+              {% if current_user %}
+                {% if current_user.is_consistent %}
+                <span class="badge streak-status-badge bg-success-subtle text-success-emphasis">Consistent!</span>
+                {% elif current_user.current_streak == 1 %}
+                <span class="badge streak-status-badge bg-info-subtle text-info-emphasis">Day 1</span>
+                {% else %}
+                <span class="badge streak-status-badge bg-warning-subtle text-warning-emphasis">Pending</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            <div class="streak-bar-track" aria-hidden="true">
+              <div class="streak-bar-fill" style="width: {{ current_user.streak_pct if current_user else 0 }}%;"></div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Top-Right Profile Icon & Logged-in Notification Dropdown -->
+        <div class="dropdown">
+          <button id="profileMenuBtn"
+                  class="btn profile-trigger-btn dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  aria-label="User profile and login status">
+            <span class="profile-avatar-sm position-relative">
+              {% if current_user %}
+                <span>{{ current_user.initials }}</span>
+                <span class="profile-notif-dot {{ 'dot-verified' if current_user.status == 'verified' else 'dot-pending' }}"
+                      title="{{ 'Verified account' if current_user.status == 'verified' else 'Pending university verification' }}"></span>
+              {% else %}
+                <span>👤</span>
+                <span class="profile-notif-dot dot-guest" title="Not logged in"></span>
+              {% endif %}
+            </span>
+            <span class="d-none d-sm-flex flex-column text-start lh-sm">
+              {% if current_user %}
+              <span class="small fw-semibold text-white">{{ current_user.full_name }}</span>
+              <span class="text-muted" style="font-size: 0.72rem;">{{ current_user.gmail }}</span>
+              {% else %}
+              <span class="small fw-semibold text-white">Not Logged In</span>
+              <span class="text-muted" style="font-size: 0.72rem;">Sign in with Gmail</span>
+              {% endif %}
+            </span>
+          </button>
+
+          <div class="dropdown-menu dropdown-menu-end portfolio-dropdown p-3" aria-labelledby="profileMenuBtn">
+            {% if current_user %}
+            <div class="pb-2 mb-2 border-bottom" style="border-color: var(--border-subtle) !important;">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                <span class="fw-bold text-white text-truncate">{{ current_user.full_name }}</span>
+                <span class="badge text-bg-{{ 'success' if current_user.status == 'verified' else 'warning' }}">
+                  {{ 'Verified' if current_user.status == 'verified' else 'Pending' }}
+                </span>
+              </div>
+              <div class="small text-gradient text-truncate">{{ current_user.gmail }}</div>
+              <div class="small text-muted text-truncate">{{ current_user.university_name }}</div>
+            </div>
+            <div class="stat-box py-2 px-2 mb-2 small d-flex justify-content-between">
+              <span>🔥 Streak: <strong>{{ current_user.current_streak }}d</strong></span>
+              <span>🏆 Best: <strong>{{ current_user.best_streak }}d</strong></span>
+              <span>📅 Days: <strong>{{ current_user.total_login_days }}</strong></span>
+            </div>
+            <a class="dropdown-item rounded-2 py-2" href="{{ url_for('profile_page') }}">👤 User Profile</a>
+            <a class="dropdown-item rounded-2 py-2" href="{{ url_for('login_page') }}">🔐 Verification &amp; Account</a>
+            <a class="dropdown-item rounded-2 py-2" href="{{ url_for('assessment_page') }}">🧠 Skill Assessment</a>
+            <a class="dropdown-item rounded-2 py-2" href="{{ url_for('planner_page') }}">🗓️ Preparation Planner</a>
+            <a class="dropdown-item rounded-2 py-2" href="{{ url_for('practice_page') }}">📝 Practice &amp; Test Schedule</a>
+            <div class="dropdown-divider" style="border-color: var(--border-subtle);"></div>
+            <form method="post" action="{{ url_for('logout_page') }}">
+              <button type="submit" class="dropdown-item rounded-2 py-2 text-danger">Sign Out</button>
+            </form>
+            {% else %}
+            <div class="mb-2">
+              <div class="fw-bold text-white">Welcome to PLACEMENT HUB</div>
+              <div class="small text-muted">Log in with Gmail &amp; verify your university to track your profile and daily streak.</div>
+            </div>
+            <a class="btn btn-primary btn-sm w-100" href="{{ url_for('login_page') }}">🔐 Login &amp; Verify</a>
+            {% endif %}
+          </div>
         </div>
-      {% endfor %}
-    {% endwith %}
+      </div>
+    </header>
+
+    <!-- Flash messages (success / error notices) -->
+    <div class="container mt-3">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category if category in ['success', 'danger', 'warning', 'info'] else 'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <!-- Each page puts its own content in this block -->
+    <main class="container my-4 flex-grow-1">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center small py-3 border-top portfolio-footer">
+      PLACEMENT HUB &middot; Placement Preparation and Skill Gap Analysis
+    </footer>
   </div>
 
-  <!-- Each page puts its own content in this block -->
-  <main class="container my-4 flex-grow-1">
-    {% block content %}{% endblock %}
-  </main>
-
-  <footer class="text-center small py-3 border-top portfolio-footer">
-    Placement Preparation and Skill Gap Analysis System &middot; Built with Modern Portfolio UI
-  </footer>
+  {% if streak_effect %}
+  <!-- Login Streak Celebration / Reset Pop-up Overlay -->
+  <div id="streak-popup"
+       class="streak-popup streak-kind-{{ streak_effect.kind }}"
+       data-streak-kind="{{ streak_effect.kind }}"
+       data-bar-emoji="{{ streak_effect.bar_emoji }}"
+       role="status"
+       aria-live="polite">
+    <button type="button" id="streak-popup-close" class="btn-close btn-close-white streak-popup-close" aria-label="Close"></button>
+    <div id="streak-popup-particles" class="streak-popup-particles" aria-hidden="true">
+      {% for p in streak_effect.particles %}
+      <span class="streak-particle" style="--idx: {{ loop.index0 }};">{{ p }}</span>
+      {% endfor %}
+    </div>
+    <div class="d-flex align-items-center gap-3 position-relative">
+      <div id="streak-popup-emoji" class="streak-popup-hero-emoji">{{ streak_effect.emoji }}</div>
+      <div>
+        <div class="fw-bold text-white mb-1">{{ streak_effect.title }}</div>
+        <div class="small text-secondary mb-2">{{ streak_effect.subtitle }}</div>
+        <div class="d-flex align-items-center gap-2 small">
+          <span class="badge text-bg-{{ 'danger' if streak_effect.kind == 'streak_broken' else 'success' if streak_effect.kind == 'streak_kept' else 'primary' }}">
+            {{ streak_effect.streak }} Day Streak
+          </span>
+          <span class="text-muted">Best: {{ streak_effect.best_streak }}d</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% if streak_effect %}
+  <script>
+  (function () {
+    const popup = document.getElementById("streak-popup");
+    const closeBtn = document.getElementById("streak-popup-close");
+    const heroEmoji = document.getElementById("streak-popup-emoji");
+    const streakBar = document.getElementById("streak-bar-widget");
+    if (!popup) return;
+
+    const kind = popup.dataset.streakKind;
+    const barEmoji = popup.dataset.barEmoji || heroEmoji?.textContent || "🔥";
+
+    function dismissPopup() {
+      popup.classList.add("is-closing");
+      window.setTimeout(() => popup.remove(), 350);
+    }
+    if (closeBtn) closeBtn.addEventListener("click", dismissPopup);
+
+    // Launch an animated emoji flying from the pop-up directly into the top-right streak bar
+    if (heroEmoji && streakBar) {
+      window.setTimeout(() => {
+        const from = heroEmoji.getBoundingClientRect();
+        const to = streakBar.getBoundingClientRect();
+        const flyer = document.createElement("div");
+        flyer.id = "streak-flying-emoji";
+        flyer.className = "streak-flying-emoji";
+        flyer.textContent = barEmoji;
+        flyer.style.left = `${from.left + from.width / 2}px`;
+        flyer.style.top = `${from.top + from.height / 2}px`;
+        document.body.appendChild(flyer);
+
+        requestAnimationFrame(() => {
+          const dx = (to.left + 20) - (from.left + from.width / 2);
+          const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+          flyer.style.transform = `translate(${dx}px, ${dy}px) scale(0.75) rotate(18deg)`;
+          flyer.style.opacity = "0.2";
+        });
+
+        window.setTimeout(() => {
+          flyer.remove();
+          if (kind === "streak_kept" || kind === "started" || kind === "same_day") {
+            streakBar.classList.add("streak-bar-celebrate");
+            window.setTimeout(() => streakBar.classList.remove("streak-bar-celebrate"), 1400);
+          } else if (kind === "streak_broken") {
+            streakBar.classList.add("streak-bar-broken");
+            window.setTimeout(() => streakBar.classList.remove("streak-bar-broken"), 1400);
+          }
+        }, 720);
+      }, 420);
+    }
+
+    window.setTimeout(dismissPopup, 5200);
+  })();
+  </script>
+  {% endif %}
   <!-- The Progress module can load Chart.js inside this block when it needs charts -->
   {% block extra_js %}{% endblock %}
 </body>

@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Login &amp; University Verification - PLACEMENT HUB{% endblock %}
+
+{% block content %}
+
+<div class="mb-4 d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h1 class="h2 fw-bold mb-1">🔐 <span class="text-gradient">User Login &amp; University Verification</span></h1>
+    <p class="text-muted mb-0">
+      Sign in with your Gmail address and verify your University Name across your Skill Assessment and Preparation Planner.
+    </p>
+  </div>
+  {% if smtp_configured %}
+  <span class="badge text-bg-success">Gmail SMTP Configured</span>
+  {% elif smtp_placeholder %}
+  <span class="badge text-bg-warning">Update .env Credentials</span>
+  {% else %}
+  <span class="badge text-bg-secondary">Local Preview Verification Mode</span>
+  {% endif %}
+</div>
+
+{% if smtp_placeholder %}
+<div class="alert alert-warning" role="alert">
+  <strong>Almost ready for real Gmail delivery:</strong> Your <code>.env</code> file still contains placeholder values (<code>youraccount@gmail.com</code> / <code>xxxx...</code>). Replace <code>GMAIL_SENDER</code> and <code>GMAIL_APP_PASSWORD</code> in <code>placement-preparation-system/.env</code> and restart Flask.
+</div>
+{% endif %}
+
+{% if general_error %}
+<div class="alert alert-danger" role="alert">{{ general_error }}</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-danger" role="alert">
+  <strong>Please fix the highlighted fields:</strong>
+  <ul class="mb-0 mt-1">
+    {% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if user and not edit_mode and user.status == 'verified' %}
+
+  {# ===================== VERIFIED ACCOUNT VIEW ===================== #}
+  <div class="card hero-card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span>Account Verified</span>
+      <span class="badge text-bg-success">Verified</span>
+    </div>
+    <div class="card-body p-4">
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="stat-box h-100">
+            <div class="small text-muted mb-1">Student Name &amp; Gmail</div>
+            <div class="fw-bold">{{ user.full_name }}</div>
+            <div class="small text-gradient">{{ user.gmail }}</div>
+          </div>
+        </div>
+        <div class="col-md-5">
+          <div class="stat-box h-100">
+            <div class="small text-muted mb-1">Verified University</div>
+            <div class="fw-bold">{{ user.university_name }}</div>
+            {% if user.verifier_email %}
+            <div class="small text-muted">Verifier notified: {{ user.verifier_email }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-box h-100">
+            <div class="small text-muted mb-1">Verified On</div>
+            <div class="fw-bold">{{ user.verified_at[:16] if user.verified_at else 'Verified' }}</div>
+            <div class="small text-muted">Via {{ 'Gmail SMTP' if user.delivery_mode == 'gmail_smtp' else 'Verification Code' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('assessment_page', student=user.student_id) if user.student_id else url_for('assessment_page') }}"
+           class="btn btn-primary px-4">
+          {% if user.student_id %}View Skill Assessment{% else %}Start Skill Assessment{% endif %} &rarr;
+        </a>
+        <a href="{{ url_for('planner_page', student=user.student_id) if user.student_id else url_for('planner_page') }}"
+           class="btn btn-outline-primary px-4">
+          Open Preparation Planner
+        </a>
+        <a href="{{ url_for('login_page', edit='1') }}" class="btn btn-outline-secondary">
+          Update University / Gmail
+        </a>
+        <form method="post" action="{{ url_for('logout_page') }}" class="d-inline ms-auto">
+          <button type="submit" class="btn btn-outline-secondary">Sign Out</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+{% elif user and not edit_mode and user.status == 'pending' %}
+
+  {# ===================== PENDING VERIFICATION VIEW ===================== #}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card hero-card h-100">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Step 2 &middot; Verify Your University</span>
+          <span class="badge text-bg-warning">Pending Verification</span>
+        </div>
+        <div class="card-body p-4">
+          <div class="stat-box mb-4">
+            <div class="small text-muted">Verification sent to</div>
+            <div class="fw-semibold mb-2">{{ user.verification_sent_to }}</div>
+            <div class="small text-muted">University Name submitted for verification</div>
+            <div class="fw-bold text-gradient">{{ user.university_name }}</div>
+          </div>
+
+          {% if otp_error %}
+          <div class="alert alert-danger py-2 small" role="alert">{{ otp_error }}</div>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('verify_page') }}" class="mb-3" novalidate>
+            <input type="hidden" name="gmail" value="{{ user.gmail }}">
+            <label class="form-label" for="otp">Enter 6-digit Verification Code (OTP)</label>
+            <div class="input-group">
+              <input type="text" id="otp" name="otp" inputmode="numeric" maxlength="6"
+                     placeholder="e.g. 482913"
+                     class="form-control form-control-lg {{ 'is-invalid' if otp_error }}"
+                     required>
+              <button type="submit" class="btn btn-primary px-4">Verify &amp; Sign In</button>
+            </div>
+          </form>
+
+          <div class="d-flex flex-wrap gap-2 pt-2 border-top" style="border-color: var(--border-subtle) !important;">
+            <form method="post" action="{{ url_for('resend_verification') }}" class="d-inline">
+              <input type="hidden" name="gmail" value="{{ user.gmail }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Resend Verification Email</button>
+            </form>
+            <a href="{{ url_for('login_page', edit='1') }}" class="btn btn-sm btn-outline-secondary">
+              Edit Gmail / University
+            </a>
+            <form method="post" action="{{ url_for('logout_page') }}" class="d-inline ms-auto">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Sign Out</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>
+            {% if user.delivery_mode == 'gmail_smtp' %}
+              Email Dispatched via Gmail SMTP
+            {% else %}
+              Verification Email Preview (Local Mode)
+            {% endif %}
+          </span>
+          <span class="badge text-bg-info">{{ 'SMTP' if user.delivery_mode == 'gmail_smtp' else 'Local Preview' }}</span>
+        </div>
+        <div class="card-body p-4">
+          {% if user.delivery_mode == 'gmail_smtp' %}
+          <p class="mb-3">
+            A verification email containing your Gmail (<strong>{{ user.gmail }}</strong>) and university name
+            (<strong>{{ user.university_name }}</strong>) has been sent to <strong>{{ user.verification_sent_to }}</strong>.
+          </p>
+          <p class="text-muted small mb-0">
+            Check your Gmail inbox (or Spam folder) for the 6-digit verification code or click the verification link inside the email.
+          </p>
+          {% elif email_preview %}
+          <p class="small text-muted mb-3">
+            Gmail SMTP credentials are not configured in this environment, so the verification email payload is displayed below for immediate verification:
+          </p>
+          <div class="stat-box mb-3 small">
+            <div class="mb-1"><strong class="text-muted">To:</strong> {{ email_preview.to }}</div>
+            <div class="mb-1"><strong class="text-muted">Subject:</strong> {{ email_preview.subject }}</div>
+            <div class="mb-2"><strong class="text-muted">University Sent:</strong> {{ email_preview.university_name }}</div>
+            <div class="d-flex align-items-center gap-2 pt-2 border-top" style="border-color: var(--border-subtle) !important;">
+              <span class="text-muted">OTP Code:</span>
+              <code class="fs-5 fw-bold text-gradient" id="preview-otp-code">{{ email_preview.otp_code }}</code>
+            </div>
+          </div>
+          <a href="{{ email_preview.verify_url }}" id="verify-link-btn" class="btn btn-primary w-100 mb-3">
+            Verify via Link &rarr;
+          </a>
+          <div class="small text-muted">
+            To send real emails through Gmail, copy <code>.env.example</code> to <code>.env</code> (or set <code>GMAIL_SENDER</code> and <code>GMAIL_APP_PASSWORD</code> environment variables) and restart Flask.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% else %}
+
+  {# ===================== LOGIN & UNIVERSITY SUBMISSION FORM ===================== #}
+  <div class="row g-4 align-items-start">
+    <div class="col-lg-7">
+      <div class="card hero-card">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Step 1 &middot; Gmail &amp; University Details</span>
+          <span class="badge text-bg-secondary">Gmail Required</span>
+        </div>
+        <div class="card-body p-4">
+          <form method="post" action="{{ url_for('login_page') }}" novalidate>
+            <div class="mb-3">
+              <label class="form-label" for="gmail">Gmail Address <span class="text-danger">*</span></label>
+              <input type="email" id="gmail" name="gmail" maxlength="254"
+                     placeholder="e.g. asha.kumar@gmail.com"
+                     class="form-control {{ 'is-invalid' if errors.get('gmail') }}"
+                     value="{{ form.get('gmail', '') }}" required>
+              <div class="form-text text-muted">Only Gmail addresses ending in <code>@gmail.com</code> are accepted.</div>
+              <div class="invalid-feedback">{{ errors.get('gmail', 'Please enter a valid Gmail address.') }}</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="university_name">University Name <span class="text-danger">*</span></label>
+              <input type="text" id="university_name" name="university_name" maxlength="150"
+                     list="university-suggestions"
+                     placeholder="e.g. Anna University"
+                     class="form-control {{ 'is-invalid' if errors.get('university_name') }}"
+                     value="{{ form.get('university_name', '') }}" required>
+              <datalist id="university-suggestions">
+                {% for uni in universities %}
+                <option value="{{ uni }}">
+                {% endfor %}
+              </datalist>
+              <div class="form-text text-muted">Your university name will be included in the verification email.</div>
+              <div class="invalid-feedback">{{ errors.get('university_name', 'Please enter your university name.') }}</div>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label" for="full_name">Full Name <span class="text-muted small">(optional)</span></label>
+                <input type="text" id="full_name" name="full_name" maxlength="100"
+                       placeholder="e.g. Asha Kumar"
+                       class="form-control {{ 'is-invalid' if errors.get('full_name') }}"
+                       value="{{ form.get('full_name', '') }}">
+                <div class="invalid-feedback">{{ errors.get('full_name', '') }}</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="verifier_email">University / Verifier Email <span class="text-muted small">(optional)</span></label>
+                <input type="email" id="verifier_email" name="verifier_email" maxlength="254"
+                       placeholder="e.g. placement@university.edu"
+                       class="form-control {{ 'is-invalid' if errors.get('verifier_email') }}"
+                       value="{{ form.get('verifier_email', '') }}">
+                <div class="invalid-feedback">{{ errors.get('verifier_email', '') }}</div>
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+              <button type="submit" class="btn btn-primary btn-lg px-4">
+                Send University Name for Verification &rarr;
+              </button>
+              {% if edit_mode and user %}
+              <a href="{{ url_for('login_page') }}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header fw-semibold">How Verification Works</div>
+        <div class="card-body p-4">
+          <ol class="ps-3 mb-3">
+            <li class="mb-2"><strong>Enter your Gmail</strong> (<code>@gmail.com</code>) and your <strong>University Name</strong>.</li>
+            <li class="mb-2">We generate a single-use <strong>6-digit OTP &amp; verification link</strong> embedding your university name and send it to your Gmail (plus an optional university verifier email).</li>
+            <li class="mb-0">Confirm the code or link to mark your university status as <strong>Verified</strong> and pre-fill your Skill Assessment &amp; Planner profile.</li>
+          </ol>
+          <div class="stat-box small text-muted mb-0">
+            Changing your university name later automatically sends a fresh verification request for the updated university.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endif %}
+
+{% endblock %}

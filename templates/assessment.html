@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Skill Assessment - Placement Preparation System{% endblock %}
+{% block title %}Skill Assessment - PLACEMENT HUB{% endblock %}
 
 {% block content %}
 
@@ -64,6 +64,18 @@
       <span class="badge text-bg-secondary">Required before quiz</span>
     </div>
     <div class="card-body p-4">
+      {% if current_user %}
+      <div class="stat-box py-2 px-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small">
+        <span>
+          Signed in: <strong>{{ current_user.gmail }}</strong> &middot; {{ current_user.university_name }}
+        </span>
+        {% if current_user.status == 'verified' %}
+        <span class="badge text-bg-success">University Verified</span>
+        {% else %}
+        <a href="{{ url_for('login_page') }}" class="badge text-bg-warning text-decoration-none">Pending Verification &rarr;</a>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="row g-3">
         <div class="col-md-6">
           <label class="form-label" for="name">Full name</label>

@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Practice &amp; Test Schedule - PLACEMENT HUB{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h1 class="h2 fw-bold mb-1">📝 <span class="text-gradient">Practice &amp; Test Schedule</span></h1>
+    <p class="text-muted mb-0">
+      Complete scheduled CareerRide topic drills &amp; timed mock tests, and automatically update your Preparation Planner when you pass (&ge; 60%).
+    </p>
+  </div>
+
+  {% if students %}
+  <form method="get" action="{{ url_for('practice_page') }}" class="d-flex align-items-center gap-2">
+    <label for="practice-student-select" class="form-label mb-0 small text-muted text-nowrap">Student:</label>
+    <select id="practice-student-select" name="student" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for s in students %}
+      <option value="{{ s.id }}" {% if s.id == selected_student_id %}selected{% endif %}>
+        {{ s.name }} ({{ s.branch }}, Yr {{ s.year }})
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+{% if general_error %}
+<div class="alert alert-danger" role="alert">{{ general_error }}</div>
+{% endif %}
+
+{% if not students %}
+<div class="card hero-card text-center p-5 mb-4">
+  <div class="display-4 mb-3">🧠</div>
+  <h2 class="h4 fw-bold mb-2">Complete a Skill Assessment to Track Your Practice Schedule</h2>
+  <p class="text-muted mx-auto mb-4" style="max-width: 560px;">
+    Take the Skill Assessment first to generate a personalized Preparation Planner schedule and save your timed practice results.
+  </p>
+  <div>
+    <a href="{{ url_for('assessment_page') }}" class="btn btn-primary btn-lg px-4">
+      Take Skill Assessment &rarr;
+    </a>
+  </div>
+</div>
+{% else %}
+
+{# Top Grid: Scheduled Practice Queue + Custom Test Scheduler #}
+<div class="row g-4 mb-4">
+  <!-- Left: Upcoming Scheduled Practice & Test Queue -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>📅 Upcoming Practice &amp; Test Schedule</span>
+        <a href="{{ url_for('planner_page', student=selected_student_id) }}" class="btn btn-sm btn-outline-primary">
+          Open Full Planner
+        </a>
+      </div>
+      <div class="card-body">
+        {% if plan and plan.tasks %}
+          <div class="list-group">
+            {% for t in plan.tasks %}
+            <div class="list-group-item p-3 {% if linked_task and linked_task.id == t.id %}border-primary{% endif %}">
+              <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+                <div>
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    <span class="badge text-bg-secondary">{{ t.due_date }}</span>
+                    {% if t.time_slot %}
+                    <span class="badge text-bg-primary">⏰ {{ t.time_slot }}</span>
+                    {% endif %}
+                    <span class="badge text-bg-dark border border-secondary">{{ t.category }}</span>
+                    <span class="badge text-bg-{{ 'success' if t.status == 'completed' else 'warning' if t.status == 'in_progress' else 'info' }}">
+                      {{ t.status | replace('_', ' ') | title }}
+                    </span>
+                  </div>
+                  <div class="fw-semibold small {% if t.status == 'completed' %}text-decoration-line-through text-muted{% endif %}">
+                    {{ t.title }}
+                  </div>
+                </div>
+                {% if t.status != 'completed' %}
+                <a href="{{ url_for('practice_page', student=selected_student_id, task_id=t.id, category=t.category, set=active_set) }}#practice-runner"
+                   class="btn btn-sm {{ 'btn-primary' if linked_task and linked_task.id == t.id else 'btn-outline-primary' }} text-nowrap">
+                  {{ 'Practicing Now' if linked_task and linked_task.id == t.id else 'Start Test' }}
+                </a>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-4">
+            <p class="text-muted mb-3">No preparation schedule generated yet for this student.</p>
+            <a href="{{ url_for('planner_page', student=selected_student_id) }}" class="btn btn-primary btn-sm">
+              Generate Planner Schedule &rarr;
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Schedule Custom Practice / Mock Test Slot -->
+  <div class="col-lg-5">
+    <div class="card hero-card h-100">
+      <div class="card-header fw-semibold">⏱️ Add Practice / Mock Test Slot</div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">
+          Schedule an extra timed practice session or full mock test onto your calendar.
+        </p>
+        <form method="post" action="{{ url_for('practice_page') }}" novalidate>
+          <input type="hidden" name="action" value="schedule_session">
+          <input type="hidden" name="student_id" value="{{ selected_student_id }}">
+
+          <div class="mb-3">
+            <label class="form-label" for="test_title">Session Title</label>
+            <input type="text" id="test_title" name="test_title" maxlength="120"
+                   placeholder="e.g. Timed Full Mock Test #1"
+                   class="form-control {{ 'is-invalid' if schedule_errors.get('test_title') }}"
+                   value="{{ schedule_form.get('test_title', '') }}" required>
+            <div class="invalid-feedback">{{ schedule_errors.get('test_title', '') }}</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="schedule_category">Test Focus</label>
+            <select id="schedule_category" name="category" class="form-select">
+              {% for ckey, clabel in category_options %}
+              <option value="{{ ckey }}" {% if schedule_form.get('category', 'mock') == ckey %}selected{% endif %}>{{ clabel }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label" for="schedule_due_date">Date</label>
+              <input type="date" id="schedule_due_date" name="due_date" min="{{ today_iso }}"
+                     class="form-control {{ 'is-invalid' if schedule_errors.get('due_date') }}"
+                     value="{{ schedule_form.get('due_date', today_iso) }}" required>
+              <div class="invalid-feedback">{{ schedule_errors.get('due_date', '') }}</div>
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="schedule_start_time">Start Time</label>
+              <input type="time" id="schedule_start_time" name="start_time"
+                     class="form-control {{ 'is-invalid' if schedule_errors.get('start_time') }}"
+                     value="{{ schedule_form.get('start_time', '19:00') }}">
+              <div class="invalid-feedback">{{ schedule_errors.get('start_time', '') }}</div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label" for="duration_minutes">Duration (minutes)</label>
+            <input type="number" id="duration_minutes" name="duration_minutes" min="10" max="180"
+                   class="form-control {{ 'is-invalid' if schedule_errors.get('duration_minutes') }}"
+                   value="{{ schedule_form.get('duration_minutes', '45') }}">
+            <div class="invalid-feedback">{{ schedule_errors.get('duration_minutes', '') }}</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">Add to Test Schedule</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Interactive Practice & Timed Mock Test Runner #}
+<div id="practice-runner" class="card mb-4">
+  <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <span>🎯 Interactive Practice: <span class="text-gradient">{{ active_label }}</span>{% if not active_ai_set %} (Set {{ active_set }}){% endif %}</span>
+      {% if linked_task %}
+      <span class="badge text-bg-info ms-2">Linked Task: {{ linked_task.title }}</span>
+      {% endif %}
+    </div>
+    <span class="badge text-bg-secondary" id="practice-timer">⏱️ 00:00</span>
+  </div>
+
+  <div class="card-body p-4">
+    <!-- Gemini AI Adaptive Question Generator -->
+    <div class="stat-box mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <span class="fw-bold">✨ Generate Verified Questions with Gemini API ({{ gemini_status.model }})</span>
+        {% if gemini_status.ready %}
+        <span class="badge text-bg-success">Gemini API Ready</span>
+        {% elif not gemini_status.sdk_installed %}
+        <span class="badge text-bg-warning">Install google-genai</span>
+        {% else %}
+        <span class="badge text-bg-warning">Add GEMINI_API_KEY in .env</span>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('practice_page') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="action" value="generate_ai">
+        <input type="hidden" name="student_id" value="{{ selected_student_id }}">
+        {% if linked_task %}<input type="hidden" name="task_id" value="{{ linked_task.id }}">{% endif %}
+        <div class="col-md-3">
+          <label class="form-label small text-muted" for="ai-category">Category (Weakest Auto-Selected)</label>
+          <select id="ai-category" name="category_key" class="form-select form-select-sm">
+            {% for ckey, clabel in category_options if ckey != 'mock' %}
+            <option value="{{ ckey }}" {% if weakest_key == ckey %}selected{% endif %}>{{ clabel }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-muted" for="ai-topic">Specific Weak Topic (optional)</label>
+          <input type="text" id="ai-topic" name="topic_focus" maxlength="100"
+                 placeholder="e.g. Time &amp; Work, Dynamic Programming, SQL Joins"
+                 class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted" for="ai-diff">Difficulty</label>
+          <select id="ai-diff" name="difficulty" class="form-select form-select-sm">
+            <option value="standard">Placement Standard</option>
+            <option value="hard">Hard (Product)</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-sm btn-primary w-100">✨ Generate 5 AI Questions</button>
+        </div>
+      </form>
+      {% if not gemini_status.ready %}
+      <div class="small text-muted mt-2">
+        Setup to enable live Gemini generation: run <code>pip install -U google-genai</code> and set <code>GEMINI_API_KEY</code> in <code>.env</code>. CareerRide sets remain ready below anytime.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Mode & Set Switcher -->
+    <form method="get" action="{{ url_for('practice_page') }}#practice-runner" class="row g-2 align-items-end mb-4 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
+      <input type="hidden" name="student" value="{{ selected_student_id }}">
+      {% if linked_task %}<input type="hidden" name="task_id" value="{{ linked_task.id }}">{% endif %}
+      <div class="col-md-5">
+        <label class="form-label small text-muted" for="runner-category">Practice Focus</label>
+        <select id="runner-category" name="category" class="form-select form-select-sm">
+          {% for ckey, clabel in category_options %}
+          <option value="{{ ckey }}" {% if active_key == ckey %}selected{% endif %}>{{ clabel }} ({{ '20 Qs' if ckey == 'mock' else '5 Qs' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small text-muted" for="runner-set">CareerRide Question Set</label>
+        <select id="runner-set" name="set" class="form-select form-select-sm">
+          {% for sid in available_sets %}
+          <option value="{{ sid }}" {% if active_set == sid %}selected{% endif %}>Question Set {{ sid }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-sm btn-outline-primary w-100">Load Questions</button>
+      </div>
+    </form>
+
+    {% if practice_result %}
+    <div class="alert alert-{{ 'success' if practice_result.passed else 'warning' }} mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <strong>Score: {{ practice_result.score }} / {{ practice_result.max_score }} ({{ practice_result.percent }}%)</strong>
+          {% if practice_result.saved_meta and practice_result.saved_meta.task_completed %}
+          <span class="ms-2">&middot; Linked planner task completed &amp; schedule rebalanced!</span>
+          {% elif practice_result.passed %}
+          <span class="ms-2">&middot; Passed!</span>
+          {% else %}
+          <span class="ms-2">&middot; Below 60% pass threshold — review explanations and retry!</span>
+          {% endif %}
+        </div>
+        <a href="{{ url_for('practice_page', student=selected_student_id, category=active_key, set=active_set) }}#practice-runner"
+           class="btn btn-sm btn-outline-light">Try Another Set</a>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+      {% for item in practice_result.review %}
+      <div class="col-md-6">
+        <div class="stat-box h-100">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small fw-semibold">Q{{ item.number }} &middot; {{ item.category }}</span>
+            <span class="badge text-bg-{{ 'success' if item.is_correct else 'danger' }}">
+              {{ 'Correct' if item.is_correct else 'Incorrect' }}
+            </span>
+          </div>
+          <p class="small fw-medium mb-2">{{ item.prompt }}</p>
+          <div class="small text-muted">Your answer: <strong>{{ item.selected | upper }}. {{ item.selected_text }}</strong></div>
+          {% if not item.is_correct %}
+          <div class="small text-success">Correct: <strong>{{ item.correct_answer | upper }}. {{ item.correct_text }}</strong></div>
+          {% endif %}
+          <div class="small text-muted mt-1">{{ item.explanation }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <form id="practice-quiz-form" method="post" action="{{ url_for('practice_page') }}" novalidate>
+      <input type="hidden" name="action" value="submit_practice">
+      <input type="hidden" name="student_id" value="{{ selected_student_id }}">
+      <input type="hidden" name="category_key" value="{{ active_key }}">
+      <input type="hidden" name="set_id" value="{{ active_set }}">
+      {% if active_ai_set %}<input type="hidden" name="ai_set_id" value="{{ active_ai_set.id }}">{% endif %}
+      {% if linked_task %}<input type="hidden" name="task_id" value="{{ linked_task.id }}">{% endif %}
+      <input type="hidden" name="duration_minutes" id="duration_minutes_hidden" value="1">
+
+      {% for q in questions %}
+      {% set field = 'q_' ~ q.id %}
+      <div class="stat-box mb-3 {% if quiz_errors.get(field) %}border-danger{% endif %}">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-bold text-gradient">Question {{ loop.index }} of {{ questions | length }}</span>
+          <span class="badge text-bg-secondary">{{ q.topic }}</span>
+        </div>
+        <p class="fw-medium mb-3">{{ q.prompt }}</p>
+        <div class="row g-2">
+          {% for opt_key, opt_text in q.options.items() %}
+          <div class="col-md-6">
+            <input type="radio" class="btn-check" name="{{ field }}" id="pr_{{ field }}_{{ opt_key }}"
+                   value="{{ opt_key }}" {% if form_values.get(field, '')|lower == opt_key %}checked{% endif %}>
+            <label class="btn btn-outline-primary w-100 text-start py-2 px-3" for="pr_{{ field }}_{{ opt_key }}">
+              <strong class="me-1">{{ opt_key | upper }}.</strong> {{ opt_text }}
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+        {% if quiz_errors.get(field) %}
+        <div class="text-danger small mt-2">{{ quiz_errors.get(field) }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="btn btn-primary btn-lg px-4">
+        Submit Practice Test &amp; Save Score
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{# Recent Practice History #}
+<div class="card">
+  <div class="card-header fw-semibold">📊 Practice &amp; Test History</div>
+  <div class="card-body">
+    {% if history %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category / Focus</th>
+            <th>Linked Task</th>
+            <th class="text-center">Score</th>
+            <th class="text-center">Duration</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in history %}
+          <tr>
+            <td class="small text-muted">{{ h.practiced_at[:16] }}</td>
+            <td class="fw-semibold">{{ h.category }} <small class="text-muted">({{ h.topic }})</small></td>
+            <td class="small text-muted">{{ h.task_title or 'Standalone Drill' }}</td>
+            <td class="text-center fw-bold">{{ h.score | int }} / {{ h.max_score | int }} ({{ h.percent }}%)</td>
+            <td class="text-center small text-muted">{{ h.duration_minutes or 0 }} min</td>
+            <td>
+              <span class="badge text-bg-{{ 'success' if h.passed else 'warning' }}">
+                {{ 'Passed' if h.passed else 'Needs Review' }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">No practice tests completed yet. Finish a quiz above to log your first score.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const timerEl = document.getElementById("practice-timer");
+  const hiddenDur = document.getElementById("duration_minutes_hidden");
+  const quizForm = document.getElementById("practice-quiz-form");
+  if (!timerEl || !quizForm) return;
+
+  const startMs = Date.now();
+  function tick() {
+    const secs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    timerEl.textContent = `⏱️ ${mm}:${ss}`;
+  }
+  const interval = window.setInterval(tick, 1000);
+  quizForm.addEventListener("submit", () => {
+    window.clearInterval(interval);
+    if (hiddenDur) {
+      const mins = Math.max(1, Math.round((Date.now() - startMs) / 60000));
+      hiddenDur.value = String(mins);
+    }
+  });
+})();
+</script>
+{% endblock %}

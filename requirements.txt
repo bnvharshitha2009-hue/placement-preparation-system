@@ -1,4 +1,6 @@
+flask
 streamlit
 pandas
 plotly
 pytest
+google-genai>=3.5.0

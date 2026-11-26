@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Preparation Planner - Placement Preparation System{% endblock %}
+{% block title %}Preparation Planner - PLACEMENT HUB{% endblock %}
 
 {% block content %}
 
@@ -79,6 +79,12 @@
           Assessed on {{ assessment.assessed_at[:16] }}
           {% if assessment.average_score is not none %}&middot; Test Score: <strong class="text-white">{{ assessment.average_score }}%</strong>{% endif %}
           &middot; Avg Level: <strong class="text-white">{{ assessment.average_rating }} / 5</strong>
+          {% if current_user and current_user.gmail == assessment.student.email %}
+            &middot; {{ current_user.university_name }}
+            <span class="badge text-bg-{{ 'success' if current_user.status == 'verified' else 'warning' }} ms-1">
+              {{ 'Verified' if current_user.status == 'verified' else 'Pending' }}
+            </span>
+          {% endif %}
         </p>
         <div class="row g-3">
           {% for r in assessment.results | sort(attribute='priority_rank') %}
@@ -106,13 +112,13 @@
     </div>
   </div>
 
-  <!-- Right: Accept Interview Date & Generate Plan -->
+  <!-- Right: Accept Interview Date, Time Schedule & Generate Plan -->
   <div class="col-lg-5">
     <div class="card hero-card h-100">
-      <div class="card-header fw-semibold">🎯 Set Your Interview Date</div>
+      <div class="card-header fw-semibold">🎯 Set Interview Date &amp; Time Schedule</div>
       <div class="card-body d-flex flex-column">
         <p class="small text-muted mb-3">
-          Enter your upcoming interview date. Tasks are automatically weighted toward your largest skill gaps and scheduled up to your target date.
+          Choose your interview date, daily start time, and study days. Completing tasks early automatically rebalances upcoming dates &amp; slots.
         </p>
         <form method="post" action="{{ url_for('planner_page') }}" class="d-flex flex-column flex-grow-1" novalidate>
           <input type="hidden" name="action" value="generate">
@@ -132,19 +138,45 @@
             {% endif %}
           </div>
 
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label for="hours_per_day" class="form-label">Daily Study Hours</label>
+              <input type="number"
+                     id="hours_per_day"
+                     name="hours_per_day"
+                     min="1"
+                     max="12"
+                     class="form-control {{ 'is-invalid' if errors.get('hours_per_day') }}"
+                     value="{{ form.get('hours_per_day') or (plan.schedule_config.hours_per_day if plan else '2') }}">
+              {% if errors.get('hours_per_day') %}
+              <div class="invalid-feedback">{{ errors.get('hours_per_day') }}</div>
+              {% endif %}
+            </div>
+            <div class="col-sm-6">
+              <label for="daily_start_time" class="form-label">Daily Start Time</label>
+              <input type="time"
+                     id="daily_start_time"
+                     name="daily_start_time"
+                     class="form-control {{ 'is-invalid' if errors.get('daily_start_time') }}"
+                     value="{{ form.get('daily_start_time') or (plan.schedule_config.daily_start_time if plan else '18:00') }}">
+              {% if errors.get('daily_start_time') %}
+              <div class="invalid-feedback">{{ errors.get('daily_start_time') }}</div>
+              {% endif %}
+            </div>
+          </div>
+
           <div class="mb-4">
-            <label for="hours_per_day" class="form-label">Daily Study Hours</label>
-            <input type="number"
-                   id="hours_per_day"
-                   name="hours_per_day"
-                   min="1"
-                   max="12"
-                   class="form-control {{ 'is-invalid' if errors.get('hours_per_day') }}"
-                   value="{{ form.get('hours_per_day') or '2' }}">
-            {% if errors.get('hours_per_day') %}
-            <div class="invalid-feedback">{{ errors.get('hours_per_day') }}</div>
+            <label for="study_days" class="form-label">Study Days</label>
+            {% set chosen_days = form.get('study_days') or (plan.schedule_config.study_days if plan else 'all') %}
+            <select id="study_days" name="study_days" class="form-select {{ 'is-invalid' if errors.get('study_days') }}">
+              {% for day_key, day_label in study_day_options.items() %}
+              <option value="{{ day_key }}" {% if chosen_days == day_key %}selected{% endif %}>{{ day_label }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.get('study_days') %}
+            <div class="invalid-feedback">{{ errors.get('study_days') }}</div>
             {% else %}
-            <div class="form-text text-muted">Recommended: 2–4 hours per day.</div>
+            <div class="form-text text-muted">Tasks auto-pack into time slots from your chosen start time.</div>
             {% endif %}
           </div>
 
@@ -166,11 +198,12 @@
         <div class="stat-box">
           <div class="stat-label">Interview Date</div>
           <div class="stat-value fs-5 mt-1">{{ plan.interview_date }}</div>
+          <div class="small text-muted">Start {{ plan.schedule_config.daily_start_time }} &middot; {{ plan.schedule_config.hours_per_day }}h/day</div>
         </div>
       </div>
       <div class="col-md-3 col-6">
         <div class="stat-box">
-          <div class="stat-label">Countdown</div>
+          <div class="stat-label">Countdown &amp; Buffer</div>
           <div class="stat-value fs-5 mt-1">
             {% if plan.days_remaining is none %}&mdash;
             {% elif plan.days_remaining == 0 %}<span class="text-warning">Today!</span>
@@ -178,18 +211,23 @@
             {% else %}<span class="text-danger">Passed</span>
             {% endif %}
           </div>
+          {% if plan.buffer_days is not none %}
+          <div class="small text-gradient">{{ plan.buffer_days }} buffer day{{ 's' if plan.buffer_days != 1 }}</div>
+          {% endif %}
         </div>
       </div>
       <div class="col-md-3 col-6">
         <div class="stat-box">
           <div class="stat-label">Tasks Completed</div>
           <div class="stat-value fs-5 mt-1">{{ plan.stats.completed }} / {{ plan.stats.total }}</div>
+          <div class="small text-muted">{{ (plan.stats.completed_minutes / 60) | round(1) }}h done &middot; {{ (plan.stats.remaining_minutes / 60) | round(1) }}h left</div>
         </div>
       </div>
       <div class="col-md-3 col-6">
         <div class="stat-box">
           <div class="stat-label">Overall Progress</div>
           <div class="stat-value fs-5 mt-1">{{ plan.stats.completion_percent }}%</div>
+          <div class="small text-muted">{{ study_day_options.get(plan.schedule_config.study_days, 'Every Day') }}</div>
         </div>
       </div>
     </div>
@@ -203,51 +241,91 @@
 </div>
 
 <div class="card">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span>📋 Your Personalized Preparation Schedule</span>
-    <span class="small text-muted">{{ plan.stats.pending }} pending &middot; {{ plan.stats.in_progress }} in progress &middot; {{ plan.stats.completed }} completed</span>
+  <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <span>📋 Your Personalized Preparation Schedule</span>
+      <span class="small text-muted ms-2">{{ plan.stats.pending }} pending &middot; {{ plan.stats.in_progress }} in progress &middot; {{ plan.stats.completed }} completed</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <form method="post" action="{{ url_for('planner_page') }}" class="d-inline">
+        <input type="hidden" name="action" value="rebalance">
+        <input type="hidden" name="student_id" value="{{ assessment.student.id }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Rebalance Schedule</button>
+      </form>
+      <a href="{{ url_for('practice_page', student=assessment.student.id) }}" class="btn btn-sm btn-outline-primary">
+        Practice &amp; Test Schedule &rarr;
+      </a>
+    </div>
   </div>
-  <div class="list-group list-group-flush">
-    {% for task in plan.tasks %}
-    <div class="list-group-item p-3 p-md-4">
-      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-        <div>
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-            <span class="badge text-bg-secondary">Due {{ task.due_date }}</span>
-            <span class="badge text-bg-dark border border-secondary">{{ task.category }}</span>
-            {% if task.status == 'completed' %}
-              <span class="badge text-bg-success">Completed</span>
-            {% elif task.status == 'in_progress' %}
-              <span class="badge text-bg-warning">In Progress</span>
-            {% else %}
-              <span class="badge text-bg-info">Pending</span>
-            {% endif %}
-          </div>
-          <h3 class="h6 fw-bold mb-1 {% if task.status == 'completed' %}text-decoration-line-through text-muted{% endif %}">
-            {{ task.title }}
-          </h3>
-          <p class="small text-muted mb-0">{{ task.description }}</p>
-        </div>
 
-        <form method="post" action="{{ url_for('planner_page') }}" class="d-flex flex-shrink-0 gap-2">
-          <input type="hidden" name="action" value="update_status">
-          <input type="hidden" name="student_id" value="{{ assessment.student.id }}">
-          <input type="hidden" name="task_id" value="{{ task.id }}">
-          {% if task.status != 'in_progress' and task.status != 'completed' %}
-          <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-outline-primary">
-            Start
-          </button>
-          {% endif %}
-          {% if task.status != 'completed' %}
-          <button type="submit" name="status" value="completed" class="btn btn-sm btn-primary">
-            Mark Done
-          </button>
-          {% else %}
-          <button type="submit" name="status" value="pending" class="btn btn-sm btn-outline-secondary">
-            Reopen
-          </button>
-          {% endif %}
-        </form>
+  <div class="card-body p-3 p-md-4">
+    {% for day in plan.schedule_days %}
+    <div class="mb-4 {% if not loop.last %}pb-3 border-bottom{% endif %}" style="border-color: var(--border-subtle) !important;">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge {{ 'text-bg-primary' if day.is_today else 'text-bg-secondary' }}">{{ day.label }}</span>
+          <span class="small text-muted">{{ day.date }}</span>
+        </div>
+        <span class="small text-muted">
+          {{ day.total_minutes }} min scheduled &middot; {{ day.completed_count }} / {{ day.tasks | length }} done
+        </span>
+      </div>
+
+      <div class="list-group">
+        {% for task in day.tasks %}
+        <div class="list-group-item p-3">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                {% if task.time_slot %}
+                <span class="badge text-bg-primary">⏰ {{ task.time_slot }}</span>
+                {% endif %}
+                <span class="badge text-bg-secondary">{{ task.estimated_minutes }} min</span>
+                <span class="badge text-bg-dark border border-secondary">{{ task.category }}</span>
+                {% if task.status == 'completed' %}
+                  <span class="badge text-bg-success">Completed</span>
+                {% elif task.status == 'in_progress' %}
+                  <span class="badge text-bg-warning">In Progress</span>
+                {% else %}
+                  <span class="badge text-bg-info">Pending</span>
+                {% endif %}
+              </div>
+              <h3 class="h6 fw-bold mb-1 {% if task.status == 'completed' %}text-decoration-line-through text-muted{% endif %}">
+                {{ task.title }}
+              </h3>
+              <p class="small text-muted mb-0">{{ task.description }}</p>
+            </div>
+
+            <div class="d-flex flex-wrap flex-shrink-0 gap-2">
+              {% if task.category in ['Aptitude', 'Coding', 'Technical Knowledge', 'HR & Communication'] and task.status != 'completed' %}
+              <a href="{{ url_for('practice_page', student=assessment.student.id, task_id=task.id, category=task.category) }}"
+                 class="btn btn-sm btn-outline-primary">
+                Practice
+              </a>
+              {% endif %}
+              <form method="post" action="{{ url_for('planner_page') }}" class="d-flex gap-2">
+                <input type="hidden" name="action" value="update_status">
+                <input type="hidden" name="student_id" value="{{ assessment.student.id }}">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                {% if task.status != 'in_progress' and task.status != 'completed' %}
+                <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-outline-secondary">
+                  Start
+                </button>
+                {% endif %}
+                {% if task.status != 'completed' %}
+                <button type="submit" name="status" value="completed" class="btn btn-sm btn-primary">
+                  Mark Done
+                </button>
+                {% else %}
+                <button type="submit" name="status" value="pending" class="btn btn-sm btn-outline-secondary">
+                  Reopen
+                </button>
+                {% endif %}
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </div>
     {% endfor %}
@@ -257,7 +335,7 @@
 {% else %}
 <div class="card p-4 text-center">
   <p class="text-muted mb-0">
-    Choose your target interview date above and click <strong>Generate Preparation Plan</strong> to build your schedule.
+    Choose your target interview date and daily time schedule above, then click <strong>Generate Preparation Plan</strong>.
   </p>
 </div>
 {% endif %}

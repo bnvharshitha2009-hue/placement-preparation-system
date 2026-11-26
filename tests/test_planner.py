@@ -178,3 +178,129 @@ class TestPlannerRoutes:
         )
         assert resp.status_code == 400
         assert "cannot be in the past" in resp.get_data(as_text=True)
+
+
+class TestTimeScheduleAndDynamicRebalancing:
+    def test_generates_non_overlapping_time_slots_and_weekdays_only(self, db_path):
+        saved = seed_student_assessment(db_path)
+        latest = am.get_latest_assessment(saved["student_id"], db_path)
+        # Start on Thursday Nov 26, 2026 -> Sat Nov 28 & Sun Nov 29 must be skipped
+        today = date(2026, 11, 26)
+        interview = date(2026, 12, 10)
+
+        plan = pm.generate_study_plan(
+            latest,
+            interview,
+            hours_per_day=2,
+            today=today,
+            daily_start_time="09:00",
+            study_days="weekdays",
+        )
+        day1_tasks = [t for t in plan["tasks"] if t["due_date"] == "2026-11-26"]
+        assert len(day1_tasks) >= 2
+        assert day1_tasks[0]["time_slot"].startswith("09:00 - ")
+        assert day1_tasks[1]["time_slot"].startswith("10:00 - ")
+
+        for task in plan["tasks"]:
+            due_d = date.fromisoformat(task["due_date"])
+            assert due_d.weekday() < 5
+            assert task["time_slot"] and " - " in task["time_slot"]
+
+    def test_completing_future_task_early_pulls_remaining_tasks_forward(self, db_path):
+        saved = seed_student_assessment(db_path)
+        sid = saved["student_id"]
+        latest = am.get_latest_assessment(sid, db_path)
+        today = date(2026, 11, 26)
+        interview = today + timedelta(days=12)
+
+        generated = pm.generate_study_plan(
+            latest, interview, hours_per_day=2, today=today, daily_start_time="18:00"
+        )
+        pm.save_plan(sid, interview, generated["tasks"], db_path, schedule_config=generated["schedule_config"])
+        before = pm.get_student_plan(sid, db_path)
+
+        # Pick an unfinished task scheduled on a future day and complete it early today
+        future_tasks = [t for t in before["tasks"] if t["due_date"] > today.isoformat() and t["category"] != "Final Revision"]
+        assert len(future_tasks) >= 2
+        done_id = future_tasks[0]["id"]
+        later_id = future_tasks[-1]["id"]
+        later_due_before = (future_tasks[-1]["due_date"], future_tasks[-1]["time_slot"])
+
+        outcome = pm.apply_task_status(done_id, sid, "completed", db_path=db_path, today=today)
+        assert outcome["updated"] == 1
+
+        after = pm.get_student_plan(sid, db_path)
+        done_task = next(t for t in after["tasks"] if t["id"] == done_id)
+        later_task = next(t for t in after["tasks"] if t["id"] == later_id)
+        assert done_task["due_date"] == today.isoformat()
+        # Because a future slot was freed, later tasks pull earlier in date or time slot
+        assert (later_task["due_date"], later_task["time_slot"]) < later_due_before
+
+    def test_reopening_completed_task_readds_to_upcoming_schedule(self, db_path):
+        saved = seed_student_assessment(db_path)
+        sid = saved["student_id"]
+        latest = am.get_latest_assessment(sid, db_path)
+        today = date(2026, 11, 26)
+        interview = today + timedelta(days=7)
+
+        generated = pm.generate_study_plan(latest, interview, hours_per_day=2, today=today)
+        pm.save_plan(sid, interview, generated["tasks"], db_path, schedule_config=generated["schedule_config"])
+        first_id = pm.get_student_plan(sid, db_path)["tasks"][0]["id"]
+
+        pm.apply_task_status(first_id, sid, "completed", db_path=db_path, today=today)
+        pm.apply_task_status(first_id, sid, "pending", db_path=db_path, today=today)
+
+        reopened = next(t for t in pm.get_student_plan(sid, db_path)["tasks"] if t["id"] == first_id)
+        assert reopened["status"] == "pending"
+        assert reopened["completed_at"] is None
+        assert reopened["due_date"] >= today.isoformat()
+        assert reopened["time_slot"]
+
+    def test_rebalance_route_moves_overdue_pending_tasks_to_today(self, client, db_path):
+        saved = seed_student_assessment(db_path)
+        sid = saved["student_id"]
+        today = date.today()
+        interview = today + timedelta(days=6)
+
+        client.post("/planner", data={
+            "action": "generate",
+            "student_id": str(sid),
+            "interview_date": interview.isoformat(),
+            "hours_per_day": "2",
+            "daily_start_time": "17:00",
+        })
+        plan = pm.get_student_plan(sid, db_path)
+        # Simulate an overdue task from 2 days ago
+        yesterday = (today - timedelta(days=2)).isoformat()
+        database.execute(
+            "UPDATE preparation_tasks SET due_date = ? WHERE id = ?",
+            (yesterday, plan["tasks"][0]["id"]),
+            db_path,
+        )
+
+        resp = client.post("/planner", data={"action": "rebalance", "student_id": str(sid)}, follow_redirects=True)
+        assert resp.status_code == 200
+        updated = pm.get_student_plan(sid, db_path)
+        assert all(t["due_date"] >= today.isoformat() for t in updated["tasks"] if t["status"] != "completed")
+        assert "17:00 -" in resp.get_data(as_text=True)
+
+    def test_init_db_migrates_legacy_preparation_tasks_columns(self, tmp_path):
+        import sqlite3
+
+        legacy = str(tmp_path / "legacy_planner.db")
+        with sqlite3.connect(legacy) as conn:
+            conn.execute(
+                """
+                CREATE TABLE preparation_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    category TEXT,
+                    due_date TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending'
+                )
+                """
+            )
+        database.init_db(legacy)
+        cols = {r["name"] for r in database.fetch_all("PRAGMA table_info(preparation_tasks)", db_path=legacy)}
+        assert {"time_slot", "estimated_minutes", "sort_order"} <= cols

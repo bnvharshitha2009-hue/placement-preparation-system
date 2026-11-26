@@ -10,14 +10,20 @@
 {% endif %}
 
 
-{# ======================= VIEW 1: THE RATING FORM ======================= #}
+{# ======================= VIEW 1: DETAILS + POP-UP PAGER QUIZ ======================= #}
 {% if view == 'form' %}
 
-<div class="mb-4">
-  <h1 class="h2 fw-bold">🧠 Skill Assessment</h1>
-  <p class="text-muted mb-0">
-    Rate your own skills in four areas. Be honest - your skill gaps show you what to improve first.
-  </p>
+<div class="mb-4 d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h1 class="h2 fw-bold mb-1">🧠 <span class="text-gradient">Skill Assessment</span></h1>
+    <p class="text-muted mb-0">
+      Enter your details first, then complete our {{ total_questions }}-question interactive assessment pop-up across Aptitude, Coding, Technical Knowledge, and HR &amp; Communication.
+    </p>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge text-bg-primary">Question Set {{ question_set }} of {{ available_sets | length }} &middot; CareerRide Dataset</span>
+    <a href="{{ url_for('assessment_page') }}" class="btn btn-sm btn-outline-secondary" title="Switch to the next alternating question set">Switch Set</a>
+  </div>
 </div>
 
 {# List every validation error at the top so nothing is missed #}
@@ -30,9 +36,9 @@
 </div>
 {% endif %}
 
-{# Rating scale explanation #}
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold">How to rate yourself (1 to 5)</div>
+{# Scoring guide #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">How Your Score Determines Your Skill Level</div>
   <div class="table-responsive">
     <table class="table table-sm mb-0 align-middle">
       <tbody>
@@ -48,78 +54,173 @@
   </div>
 </div>
 
-<form method="post" action="{{ url_for('assessment_page') }}" novalidate>
+<form id="assessment-form" method="post" action="{{ url_for('assessment_page') }}" novalidate>
+  <input type="hidden" name="question_set" value="{{ question_set }}">
 
-  {# Student details (needed to link the assessment to a student) #}
-  <div class="card shadow-sm mb-4">
-    <div class="card-header fw-semibold">Your details</div>
-    <div class="card-body">
+  {# Step 1: Student details card #}
+  <div class="card hero-card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span>Step 1 &middot; Your details</span>
+      <span class="badge text-bg-secondary">Required before quiz</span>
+    </div>
+    <div class="card-body p-4">
       <div class="row g-3">
         <div class="col-md-6">
           <label class="form-label" for="name">Full name</label>
           <input type="text" id="name" name="name" maxlength="100"
+                 placeholder="e.g. Asha Kumar"
                  class="form-control {{ 'is-invalid' if errors.get('name') }}"
                  value="{{ form.get('name', '') }}">
-          {% if errors.get('name') %}<div class="invalid-feedback">{{ errors.get('name') }}</div>{% endif %}
+          <div class="invalid-feedback" id="error-name">{{ errors.get('name', 'Please enter your name.') }}</div>
         </div>
         <div class="col-md-6">
           <label class="form-label" for="email">Email</label>
           <input type="email" id="email" name="email" maxlength="254"
+                 placeholder="e.g. asha@college.edu"
                  class="form-control {{ 'is-invalid' if errors.get('email') }}"
                  value="{{ form.get('email', '') }}">
-          {% if errors.get('email') %}<div class="invalid-feedback">{{ errors.get('email') }}</div>{% endif %}
+          <div class="invalid-feedback" id="error-email">{{ errors.get('email', 'Please enter a valid email address.') }}</div>
         </div>
         <div class="col-md-8">
           <label class="form-label" for="branch">Branch / Department</label>
           <input type="text" id="branch" name="branch" maxlength="100" placeholder="e.g. CSE"
                  class="form-control {{ 'is-invalid' if errors.get('branch') }}"
                  value="{{ form.get('branch', '') }}">
-          {% if errors.get('branch') %}<div class="invalid-feedback">{{ errors.get('branch') }}</div>{% endif %}
+          <div class="invalid-feedback" id="error-branch">{{ errors.get('branch', 'Please enter your branch or department.') }}</div>
         </div>
         <div class="col-md-4">
           <label class="form-label" for="year">Year of study</label>
           <select id="year" name="year" class="form-select {{ 'is-invalid' if errors.get('year') }}">
             <option value="">Select</option>
             {% for y in ['1', '2', '3', '4'] %}
-            <option value="{{ y }}" {% if form.get('year') == y %}selected{% endif %}>{{ y }}</option>
+            <option value="{{ y }}" {% if form.get('year') == y %}selected{% endif %}>Year {{ y }}</option>
             {% endfor %}
           </select>
-          {% if errors.get('year') %}<div class="invalid-feedback">{{ errors.get('year') }}</div>{% endif %}
+          <div class="invalid-feedback" id="error-year">{{ errors.get('year', 'Please select your year of study.') }}</div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4 pt-3 border-top" style="border-color: var(--border-subtle) !important;">
+        <span class="small text-muted">
+          {{ categories | length }} pages &middot; {{ questions_per_category }} questions per category (Set {{ question_set }}) &middot; Graded automatically
+        </span>
+        <button type="button" id="start-assessment-btn" class="btn btn-primary btn-lg px-4">
+          Submit Details &amp; Open Quiz Pager &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# Step 2: Pop-up Pager Modal containing all 4 category pages #}
+  <div class="modal fade portfolio-modal"
+       id="assessmentPagerModal"
+       tabindex="-1"
+       aria-labelledby="pagerModalLabel"
+       aria-hidden="true"
+       data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header flex-column align-items-stretch gap-3 pb-3">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <h2 class="modal-title h5 fw-bold mb-1" id="pagerModalLabel">
+                🧠 <span class="text-gradient">Skill Assessment Pager</span>
+              </h2>
+              <div class="small text-muted" id="pager-student-summary"></div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+
+          {# Pager Category Tabs / Pills #}
+          <div class="d-flex flex-wrap gap-2" role="tablist" aria-label="Assessment pages">
+            {% for c in categories %}
+            <button type="button"
+                    class="pager-pill {% if loop.first %}active{% endif %}"
+                    data-pager-goto="{{ loop.index0 }}">
+              {{ loop.index }}. {{ c.label }}
+            </button>
+            {% endfor %}
+          </div>
+
+          <div>
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span id="pager-top-step">Page 1 of {{ categories | length }}</span>
+              <span id="pager-answered-count">0 / {{ total_questions }} answered</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+              <div class="progress-bar" id="pager-progress-bar" style="width: 25%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-body p-4">
+          <div id="pager-validation-alert" class="alert alert-warning d-none mb-3" role="alert">
+            Please answer all questions on this page before moving forward.
+          </div>
+
+          {% for c in categories %}
+          {% set cat_questions = questions_by_category[c.key] %}
+          <div class="pager-page {% if not loop.first %}d-none{% endif %}" data-page="{{ loop.index0 }}" data-category-label="{{ c.label }}">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div>
+                <h3 class="h5 fw-bold mb-0">{{ c.label }}</h3>
+                <small class="text-muted">{{ c.description }}</small>
+              </div>
+              <span class="badge text-bg-dark border border-secondary">{{ cat_questions | length }} Questions</span>
+            </div>
+
+            {% for q in cat_questions %}
+            {% set field = 'q_' ~ q.id %}
+            <div class="stat-box mb-3 question-card {% if errors.get(field) %}border-danger{% endif %}" data-question-field="{{ field }}">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <span class="fw-bold text-gradient">Question {{ q.number }} of {{ cat_questions | length }}</span>
+                <span class="badge text-bg-secondary">{{ q.topic }}</span>
+              </div>
+              <p class="fw-medium mb-3">{{ q.prompt }}</p>
+
+              <div class="row g-2">
+                {% for opt_key, opt_text in q.options.items() %}
+                <div class="col-md-6">
+                  <input type="radio"
+                         class="btn-check question-radio"
+                         name="{{ field }}"
+                         id="{{ field }}_{{ opt_key }}"
+                         value="{{ opt_key }}"
+                         {% if form.get(field, '')|lower == opt_key %}checked{% endif %}>
+                  <label class="btn btn-outline-primary w-100 text-start py-2 px-3" for="{{ field }}_{{ opt_key }}">
+                    <strong class="me-1">{{ opt_key | upper }}.</strong> {{ opt_text }}
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+
+              {% if errors.get(field) %}
+              <div class="text-danger small mt-2 server-question-error">{{ errors.get(field) }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="modal-footer d-flex justify-content-between align-items-center">
+          <button type="button" id="pager-prev-btn" class="btn btn-outline-secondary" disabled>
+            &larr; Previous
+          </button>
+          <span id="pager-step-label" class="small text-muted">Page 1 of {{ categories | length }}</span>
+          <div class="d-flex gap-2">
+            <button type="button" id="pager-next-btn" class="btn btn-primary px-4">
+              Next &rarr;
+            </button>
+            <button type="submit" id="pager-submit-btn" class="btn btn-primary px-4 d-none">
+              Submit Assessment &amp; Analyze Skill Gaps
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  {# One card per skill category #}
-  {% for c in categories %}
-  {% set field = 'rating_' ~ c.key %}
-  <div class="card shadow-sm mb-3 {{ 'border-danger' if errors.get(field) }}">
-    <div class="card-body">
-      <h2 class="h5 fw-bold mb-1">{{ c.label }}</h2>
-      <p class="text-muted small mb-3">{{ c.description }}</p>
-
-      <div class="d-flex flex-wrap gap-2">
-        {% for s in rating_scale %}
-        <div>
-          <input type="radio" class="btn-check" name="{{ field }}" id="{{ field }}_{{ s.value }}"
-                 value="{{ s.value }}" {% if form.get(field) == s.value|string %}checked{% endif %}>
-          <label class="btn btn-outline-primary" for="{{ field }}_{{ s.value }}">
-            {{ s.value }} &middot; {{ s.label }}
-          </label>
-        </div>
-        {% endfor %}
-      </div>
-
-      {% if errors.get(field) %}
-      <div class="text-danger small mt-2">{{ errors.get(field) }}</div>
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
-
-  <div class="text-center my-4">
-    <button type="submit" class="btn btn-primary btn-lg px-5">Calculate my skill gaps</button>
-  </div>
 </form>
 
 
@@ -127,25 +228,31 @@
 {% elif view == 'result' %}
 
 <div class="mb-4">
-  <h1 class="h2 fw-bold">📊 Your Skill Gap Results</h1>
-  <p class="mb-0">
+  <h1 class="h2 fw-bold mb-1">📊 <span class="text-gradient">Your Skill Gap Results</span></h1>
+  <p class="mb-1">
     <strong>{{ result.student.name }}</strong>
     <span class="text-muted">&middot; {{ result.student.branch }}, Year {{ result.student.year }}
       &middot; {{ result.student.email }}</span>
   </p>
-  <p class="text-muted small">Assessed on {{ result.assessed_at[:19] }} &middot; Average rating {{ result.average_rating }} / 5</p>
+  <p class="text-muted small mb-0">
+    Assessed on {{ result.assessed_at[:19] }}
+    {% if question_set %}&middot; Question Set <strong>{{ question_set }}</strong>{% endif %}
+    {% if result.average_score is not none %}&middot; Overall score <strong>{{ result.average_score }}%</strong>{% endif %}
+    &middot; Average skill level <strong>{{ result.average_rating }} / 5</strong>
+  </p>
 </div>
 
-{# Ratings and gaps #}
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold">Ratings and skill gaps</div>
+{# Scores, derived ratings, and gaps #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Assessment scores, skill levels &amp; gaps</div>
   <div class="table-responsive">
     <table class="table align-middle mb-0">
       <thead class="table-light">
         <tr>
           <th>Category</th>
-          <th style="min-width: 12rem;">Your rating</th>
-          <th class="text-center">Skill gap<br><small class="text-muted fw-normal">(5 - rating)</small></th>
+          <th class="text-center">Test Score</th>
+          <th style="min-width: 12rem;">Measured Level</th>
+          <th class="text-center">Skill gap<br><small class="text-muted fw-normal">(5 - level)</small></th>
           <th>Priority</th>
         </tr>
       </thead>
@@ -153,8 +260,16 @@
         {% for r in result.results %}
         <tr>
           <td class="fw-semibold">{{ r.label }}</td>
+          <td class="text-center">
+            {% if r.score_percent is not none %}
+              <div class="fw-bold">{{ r.score_percent | int if r.score_percent == r.score_percent | int else r.score_percent }}%</div>
+              <small class="text-muted">{{ r.correct_count }} / {{ r.total_questions }} correct</small>
+            {% else %}
+              <span class="text-muted">&mdash;</span>
+            {% endif %}
+          </td>
           <td>
-            <div class="progress" style="height: 10px;" role="progressbar"
+            <div class="progress mb-1" style="height: 10px;" role="progressbar"
                  aria-label="{{ r.label }} rating" aria-valuenow="{{ r.rating }}" aria-valuemin="0" aria-valuemax="5">
               <div class="progress-bar" style="width: {{ r.rating * 20 }}%"></div>
             </div>
@@ -170,7 +285,7 @@
 </div>
 
 {# Improvement priorities: biggest gap first #}
-<div class="card shadow-sm mb-4">
+<div class="card mb-4">
   <div class="card-header fw-semibold">🚀 Improvement priorities (work on these first)</div>
   {% set to_improve = result.results | selectattr('gap', 'gt', 0) | sort(attribute='priority_rank') | list %}
   {% if to_improve %}
@@ -186,19 +301,241 @@
     {% endfor %}
   </ol>
   {% else %}
-  <div class="card-body text-success">Excellent! You rated yourself 5 in every category - no skill gaps.</div>
+  <div class="card-body text-success">Excellent! You scored full marks across every category - no skill gaps.</div>
   {% endif %}
 </div>
 
+{# Question-by-question answer review (shown right after submitting) #}
+{% if review %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">📝 Question-by-Question Answer Review</div>
+  <div class="list-group list-group-flush">
+    {% for item in review %}
+    <div class="list-group-item p-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+        <span class="small fw-semibold text-muted">{{ item.category_label }} &middot; {{ item.topic }}</span>
+        {% if item.is_correct %}
+          <span class="badge text-bg-success">Correct</span>
+        {% else %}
+          <span class="badge text-bg-danger">Incorrect</span>
+        {% endif %}
+      </div>
+      <div class="fw-semibold mb-1">{{ item.prompt }}</div>
+      <div class="small mb-1">
+        Your answer: <strong class="{{ 'text-success' if item.is_correct else 'text-danger' }}">{{ item.selected | upper }}. {{ item.selected_text }}</strong>
+        {% if not item.is_correct %}
+          &nbsp;|&nbsp; Correct answer: <strong class="text-success">{{ item.correct_answer | upper }}. {{ item.correct_text }}</strong>
+        {% endif %}
+      </div>
+      <div class="small text-muted">{{ item.explanation }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <p class="text-muted small">
   Priority guide: gap 3-4 = High, gap 2 = Medium, gap 1 = Low, gap 0 = no gap.
-  These are your own ratings, so rate yourself honestly for useful results.
+  Levels are computed directly from your assessment test scores.
 </p>
 
-<div class="text-center mb-4">
-  <a class="btn btn-primary" href="{{ url_for('assessment_page') }}">Take the assessment again</a>
+<div class="text-center d-flex flex-wrap justify-content-center gap-2 mb-4">
+  <a class="btn btn-primary btn-lg px-4" href="{{ url_for('planner_page', student=result.student.id) }}">🗓️ Plan Preparation for Interview</a>
+  <a class="btn btn-outline-primary" href="{{ url_for('assessment_page') }}">Take the assessment again</a>
   <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Back to Home</a>
 </div>
 
+{% endif %}
+{% endblock %}
+
+
+{% block extra_js %}
+{% if view == 'form' %}
+<script>
+(function () {
+  const form = document.getElementById("assessment-form");
+  const modalEl = document.getElementById("assessmentPagerModal");
+  if (!form || !modalEl || typeof bootstrap === "undefined") return;
+
+  const startBtn = document.getElementById("start-assessment-btn");
+  const prevBtn = document.getElementById("pager-prev-btn");
+  const nextBtn = document.getElementById("pager-next-btn");
+  const submitBtn = document.getElementById("pager-submit-btn");
+  const stepLabel = document.getElementById("pager-step-label");
+  const topStepLabel = document.getElementById("pager-top-step");
+  const answeredLabel = document.getElementById("pager-answered-count");
+  const progressBar = document.getElementById("pager-progress-bar");
+  const summaryEl = document.getElementById("pager-student-summary");
+  const validationAlert = document.getElementById("pager-validation-alert");
+
+  const pages = Array.from(modalEl.querySelectorAll(".pager-page"));
+  const pills = Array.from(modalEl.querySelectorAll("[data-pager-goto]"));
+  const totalPages = pages.length;
+  let currentPage = 0;
+  let allowSubmit = false;
+
+  const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+  function validateDetails() {
+    const nameInput = document.getElementById("name");
+    const emailInput = document.getElementById("email");
+    const branchInput = document.getElementById("branch");
+    const yearInput = document.getElementById("year");
+
+    const checks = [
+      {
+        el: nameInput,
+        valid: nameInput.value.trim().length > 0 && nameInput.value.trim().length <= 100,
+      },
+      {
+        el: emailInput,
+        valid: emailRegex.test(emailInput.value.trim()) && emailInput.value.trim().length <= 254,
+      },
+      {
+        el: branchInput,
+        valid: branchInput.value.trim().length > 0 && branchInput.value.trim().length <= 100,
+      },
+      {
+        el: yearInput,
+        valid: ["1", "2", "3", "4"].includes(yearInput.value.trim()),
+      },
+    ];
+
+    let firstInvalid = null;
+    checks.forEach(({ el, valid }) => {
+      el.classList.toggle("is-invalid", !valid);
+      if (!valid && !firstInvalid) firstInvalid = el;
+    });
+
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return false;
+    }
+
+    summaryEl.textContent = `${nameInput.value.trim()} · ${branchInput.value.trim()} · Year ${yearInput.value.trim()} (${emailInput.value.trim()})`;
+    return true;
+  }
+
+  function isPageComplete(pageIdx) {
+    const cards = Array.from(pages[pageIdx].querySelectorAll(".question-card"));
+    let allAnswered = true;
+    cards.forEach((card) => {
+      const checked = card.querySelector("input[type='radio']:checked");
+      card.classList.toggle("border-danger", !checked);
+      if (!checked) allAnswered = false;
+    });
+    return allAnswered;
+  }
+
+  function updateProgress() {
+    const allCards = Array.from(modalEl.querySelectorAll(".question-card"));
+    const answered = allCards.filter((c) => c.querySelector("input[type='radio']:checked")).length;
+    answeredLabel.textContent = `${answered} / ${allCards.length} answered`;
+
+    pills.forEach((pill, idx) => {
+      pill.classList.toggle("active", idx === currentPage);
+      const cards = Array.from(pages[idx].querySelectorAll(".question-card"));
+      const done = cards.every((c) => c.querySelector("input[type='radio']:checked"));
+      pill.classList.toggle("completed", done);
+    });
+  }
+
+  function showPage(idx) {
+    currentPage = Math.max(0, Math.min(totalPages - 1, idx));
+    validationAlert.classList.add("d-none");
+
+    pages.forEach((p, i) => p.classList.toggle("d-none", i !== currentPage));
+    const pageText = `Page ${currentPage + 1} of ${totalPages}`;
+    stepLabel.textContent = pageText;
+    topStepLabel.textContent = pageText;
+    progressBar.style.width = `${Math.round(((currentPage + 1) / totalPages) * 100)}%`;
+
+    prevBtn.disabled = currentPage === 0;
+    const isLast = currentPage === totalPages - 1;
+    nextBtn.classList.toggle("d-none", isLast);
+    submitBtn.classList.toggle("d-none", !isLast);
+
+    updateProgress();
+  }
+
+  function openPagerAt(pageIdx) {
+    if (!validateDetails()) return;
+    showPage(pageIdx);
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  startBtn.addEventListener("click", () => openPagerAt(0));
+
+  prevBtn.addEventListener("click", () => {
+    if (currentPage > 0) showPage(currentPage - 1);
+  });
+
+  nextBtn.addEventListener("click", () => {
+    if (!isPageComplete(currentPage)) {
+      validationAlert.classList.remove("d-none");
+      return;
+    }
+    if (currentPage < totalPages - 1) showPage(currentPage + 1);
+  });
+
+  pills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const targetIdx = parseInt(pill.dataset.pagerGoto, 10);
+      if (targetIdx <= currentPage || isPageComplete(currentPage)) {
+        showPage(targetIdx);
+      } else {
+        validationAlert.classList.remove("d-none");
+      }
+    });
+  });
+
+  modalEl.querySelectorAll(".question-radio").forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const card = radio.closest(".question-card");
+      if (card) card.classList.remove("border-danger");
+      validationAlert.classList.add("d-none");
+      updateProgress();
+    });
+  });
+
+  submitBtn.addEventListener("click", (e) => {
+    for (let i = 0; i < totalPages; i++) {
+      if (!isPageComplete(i)) {
+        e.preventDefault();
+        showPage(i);
+        validationAlert.classList.remove("d-none");
+        return;
+      }
+    }
+    allowSubmit = true;
+  });
+
+  form.addEventListener("submit", (e) => {
+    if (allowSubmit) return;
+    e.preventDefault();
+    openPagerAt(currentPage);
+  });
+
+  // Clear invalid outline on detail fields as user edits them
+  ["name", "email", "branch", "year"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", () => el.classList.remove("is-invalid"));
+      el.addEventListener("change", () => el.classList.remove("is-invalid"));
+    }
+  });
+
+  // If server returned question errors (and details are valid), auto-reopen modal on that page
+  const hasDetailErrors = ["name", "email", "branch", "year"].some((id) =>
+    document.getElementById(id)?.classList.contains("is-invalid")
+  );
+  if (!hasDetailErrors) {
+    const firstErrorPage = pages.findIndex((p) => p.querySelector(".server-question-error"));
+    if (firstErrorPage !== -1) {
+      openPagerAt(firstErrorPage);
+    }
+  }
+})();
+</script>
 {% endif %}
 {% endblock %}

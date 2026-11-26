@@ -3,31 +3,37 @@
 {% block title %}Home - Placement Preparation System{% endblock %}
 
 {% block content %}
-<!-- Project description -->
-<div class="p-5 mb-4 bg-white rounded-3 shadow-sm">
-  <h1 class="display-6 fw-bold text-center">Placement Preparation &amp; Skill Gap Analysis System</h1>
-  <p class="lead text-muted text-center">
-    Find out where you stand, plan what to study, and track your progress.
+<!-- Hero Section -->
+<div class="p-4 p-md-5 mb-5 hero-card text-center">
+  <div class="mb-3">
+    <span class="hero-badge">Campus Placement Readiness Platform</span>
+  </div>
+  <h1 class="display-5 fw-bold mb-3">
+    Placement Preparation &amp; <span class="text-gradient">Skill Gap Analysis</span>
+  </h1>
+  <p class="lead text-muted mx-auto mb-4" style="max-width: 720px;">
+    Find out where you stand, turn your skill gaps into an interview-ready timeline, and track your progress.
   </p>
-  <p class="mb-0">
-    Campus placements test aptitude, coding, technical knowledge and communication.
-    This system is designed to help students see which of these skills are strong and
-    which need work (the <strong>skill gap</strong>), turn those gaps into a study plan,
-    and follow their improvement over time. The project is built in three modules,
-    one for each team member.
-  </p>
+  <div class="d-flex flex-wrap justify-content-center gap-3">
+    <a href="{{ url_for('assessment_page') }}" class="btn btn-primary btn-lg px-4">
+      Start Skill Assessment
+    </a>
+    <a href="{{ url_for('planner_page') }}" class="btn btn-outline-primary btn-lg px-4">
+      Open Preparation Planner
+    </a>
+  </div>
 </div>
 
 <!-- Three module cards. Links use the route names defined in app.py. -->
 <div class="row g-4">
   <div class="col-md-4">
-    <div class="card h-100 shadow-sm">
-      <div class="card-body text-center d-flex flex-column">
-        <div class="display-4">🧠</div>
-        <h5 class="card-title mt-2">Skill Assessment</h5>
+    <div class="card card-hover h-100">
+      <div class="card-body text-center d-flex flex-column p-4">
+        <div class="display-4 mb-2">🧠</div>
+        <h5 class="card-title fw-bold mt-2">Skill Assessment</h5>
         <p class="card-text text-muted">
-          Rate your skills and take aptitude, coding, technical and HR assessments
-          to find your strong and weak topics.
+          Answer real aptitude, coding, technical and HR interview questions
+          to measure your true skill levels and pinpoint your skill gaps.
         </p>
         <p class="small mb-3">
           {% if modules.assessment.ready %}<span class="badge text-bg-success">Ready</span>
@@ -40,12 +46,12 @@
   </div>
 
   <div class="col-md-4">
-    <div class="card h-100 shadow-sm">
-      <div class="card-body text-center d-flex flex-column">
-        <div class="display-4">🗓️</div>
-        <h5 class="card-title mt-2">Preparation Planner</h5>
+    <div class="card card-hover h-100">
+      <div class="card-body text-center d-flex flex-column p-4">
+        <div class="display-4 mb-2">🗓️</div>
+        <h5 class="card-title fw-bold mt-2">Preparation Planner</h5>
         <p class="card-text text-muted">
-          Turn your skill gaps into a study plan with tasks and deadlines.
+          Turn your skill gaps into a personalized day-by-day study plan tailored to your interview date.
         </p>
         <p class="small mb-3">
           {% if modules.planner.ready %}<span class="badge text-bg-success">Ready</span>
@@ -58,10 +64,10 @@
   </div>
 
   <div class="col-md-4">
-    <div class="card h-100 shadow-sm">
-      <div class="card-body text-center d-flex flex-column">
-        <div class="display-4">📈</div>
-        <h5 class="card-title mt-2">Progress Dashboard</h5>
+    <div class="card card-hover h-100">
+      <div class="card-body text-center d-flex flex-column p-4">
+        <div class="display-4 mb-2">📈</div>
+        <h5 class="card-title fw-bold mt-2">Progress Dashboard</h5>
         <p class="card-text text-muted">
           Track practice results and completed tasks with charts.
         </p>

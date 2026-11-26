@@ -24,6 +24,7 @@ from flask import Flask, render_template
 
 from database import DEFAULT_DB_PATH, init_db
 from modules import assessment as assessment_module  # Member 1's feature
+from modules import planner as planner_module        # Member 2's feature
 
 # Information shown on the home page and on the placeholder pages.
 # When a module is finished, set "ready" to True (see the README for the steps).
@@ -44,7 +45,7 @@ MODULES = {
         "summary": "Turn your skill gaps into a study plan with tasks and deadlines.",
         "endpoint": "planner_page",
         "module_file": "planner.py",
-        "ready": False,
+        "ready": True,
     },
     "progress": {
         "title": "Progress Tracking",
@@ -102,10 +103,10 @@ def register_routes(app):
         # GET shows the form or a result, POST validates and saves the form.
         return assessment_module.handle_assessment_request(app.config["DATABASE"])
 
-    @app.route("/planner")
+    @app.route("/planner", methods=["GET", "POST"])
     def planner_page():
-        # TODO (Member 2): call the planner module here.
-        return render_template("placeholder.html", module=MODULES["planner"])
+        # Member 2: all the work is done in modules/planner.py.
+        return planner_module.handle_planner_request(app.config["DATABASE"])
 
     @app.route("/progress")
     def progress_page():

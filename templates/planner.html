@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Preparation Planner - Placement Preparation System{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h1 class="h2 fw-bold mb-1">🗓️ <span class="text-gradient">Preparation Planner</span></h1>
+    <p class="text-muted mb-0">
+      Turn your skill assessment gaps into a dated, priority-ordered roadmap for your interview.
+    </p>
+  </div>
+
+  {% if students %}
+  <form method="get" action="{{ url_for('planner_page') }}" class="d-flex align-items-center gap-2">
+    <label for="student-select" class="form-label mb-0 small text-muted text-nowrap">Student:</label>
+    <select id="student-select" name="student" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for s in students %}
+      <option value="{{ s.id }}" {% if s.id == selected_student_id %}selected{% endif %}>
+        {{ s.name }} ({{ s.branch }}, Yr {{ s.year }})
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+{% if general_error %}
+<div class="alert alert-danger" role="alert">{{ general_error }}</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-danger" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul class="mb-0">
+    {% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if not students %}
+<div class="card hero-card text-center p-5">
+  <div class="display-4 mb-3">🧠</div>
+  <h2 class="h4 fw-bold mb-2">No Skill Assessments Found Yet</h2>
+  <p class="text-muted mx-auto mb-4" style="max-width: 540px;">
+    Complete a Skill Assessment first so the Preparation Planner can analyze your skill gaps and build a personalized study schedule.
+  </p>
+  <div>
+    <a href="{{ url_for('assessment_page') }}" class="btn btn-primary btn-lg px-4">
+      Take Skill Assessment
+    </a>
+  </div>
+</div>
+
+{% elif assessment is none %}
+<div class="card p-4 text-center">
+  <p class="text-muted mb-3">No skill assessment was found for the selected student.</p>
+  <div>
+    <a href="{{ url_for('assessment_page') }}" class="btn btn-primary">Take Skill Assessment</a>
+  </div>
+</div>
+
+{% else %}
+
+<!-- Top Row: Skill Gap Snapshot + Interview Date Form -->
+<div class="row g-4 mb-4">
+  <!-- Left: Skill Assessment Summary -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>📊 Skill Gap Snapshot &middot; {{ assessment.student.name }}</span>
+        <a href="{{ url_for('assessment_page', student=assessment.student.id) }}" class="btn btn-sm btn-outline-primary">
+          View Full Report
+        </a>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">
+          Assessed on {{ assessment.assessed_at[:16] }}
+          {% if assessment.average_score is not none %}&middot; Test Score: <strong class="text-white">{{ assessment.average_score }}%</strong>{% endif %}
+          &middot; Avg Level: <strong class="text-white">{{ assessment.average_rating }} / 5</strong>
+        </p>
+        <div class="row g-3">
+          {% for r in assessment.results | sort(attribute='priority_rank') %}
+          <div class="col-sm-6">
+            <div class="stat-box h-100">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="fw-semibold">{{ r.label }}</span>
+                <span class="badge text-bg-{{ r.badge }}">{{ r.priority }}</span>
+              </div>
+              <div class="progress mb-2" style="height: 8px;">
+                <div class="progress-bar" style="width: {{ r.rating * 20 }}%"></div>
+              </div>
+              <div class="d-flex justify-content-between small text-muted">
+                <span>
+                  {% if r.score_percent is not none %}Score: {{ r.score_percent | int }}% &middot; {% endif %}
+                  Lvl {{ r.rating }}/5
+                </span>
+                <span>Gap: <strong class="text-white">{{ r.gap }}</strong></span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Accept Interview Date & Generate Plan -->
+  <div class="col-lg-5">
+    <div class="card hero-card h-100">
+      <div class="card-header fw-semibold">🎯 Set Your Interview Date</div>
+      <div class="card-body d-flex flex-column">
+        <p class="small text-muted mb-3">
+          Enter your upcoming interview date. Tasks are automatically weighted toward your largest skill gaps and scheduled up to your target date.
+        </p>
+        <form method="post" action="{{ url_for('planner_page') }}" class="d-flex flex-column flex-grow-1" novalidate>
+          <input type="hidden" name="action" value="generate">
+          <input type="hidden" name="student_id" value="{{ assessment.student.id }}">
+
+          <div class="mb-3">
+            <label for="interview_date" class="form-label">Target Interview Date</label>
+            <input type="date"
+                   id="interview_date"
+                   name="interview_date"
+                   min="{{ today_iso }}"
+                   class="form-control {{ 'is-invalid' if errors.get('interview_date') }}"
+                   value="{{ form.get('interview_date') or (plan.interview_date if plan else '') }}"
+                   required>
+            {% if errors.get('interview_date') %}
+            <div class="invalid-feedback">{{ errors.get('interview_date') }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-4">
+            <label for="hours_per_day" class="form-label">Daily Study Hours</label>
+            <input type="number"
+                   id="hours_per_day"
+                   name="hours_per_day"
+                   min="1"
+                   max="12"
+                   class="form-control {{ 'is-invalid' if errors.get('hours_per_day') }}"
+                   value="{{ form.get('hours_per_day') or '2' }}">
+            {% if errors.get('hours_per_day') %}
+            <div class="invalid-feedback">{{ errors.get('hours_per_day') }}</div>
+            {% else %}
+            <div class="form-text text-muted">Recommended: 2–4 hours per day.</div>
+            {% endif %}
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg w-100 mt-auto">
+            {% if plan %}Regenerate Preparation Plan{% else %}Generate Preparation Plan{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Preparation Plan -->
+{% if plan %}
+<div class="card mb-4">
+  <div class="card-body p-4">
+    <div class="row g-3 align-items-center mb-3">
+      <div class="col-md-3 col-6">
+        <div class="stat-box">
+          <div class="stat-label">Interview Date</div>
+          <div class="stat-value fs-5 mt-1">{{ plan.interview_date }}</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-box">
+          <div class="stat-label">Countdown</div>
+          <div class="stat-value fs-5 mt-1">
+            {% if plan.days_remaining is none %}&mdash;
+            {% elif plan.days_remaining == 0 %}<span class="text-warning">Today!</span>
+            {% elif plan.days_remaining > 0 %}{{ plan.days_remaining }} day{{ 's' if plan.days_remaining != 1 }} left
+            {% else %}<span class="text-danger">Passed</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-box">
+          <div class="stat-label">Tasks Completed</div>
+          <div class="stat-value fs-5 mt-1">{{ plan.stats.completed }} / {{ plan.stats.total }}</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-box">
+          <div class="stat-label">Overall Progress</div>
+          <div class="stat-value fs-5 mt-1">{{ plan.stats.completion_percent }}%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress" style="height: 10px;" role="progressbar"
+         aria-label="Preparation completion" aria-valuenow="{{ plan.stats.completion_percent }}"
+         aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar" style="width: {{ plan.stats.completion_percent }}%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span>📋 Your Personalized Preparation Schedule</span>
+    <span class="small text-muted">{{ plan.stats.pending }} pending &middot; {{ plan.stats.in_progress }} in progress &middot; {{ plan.stats.completed }} completed</span>
+  </div>
+  <div class="list-group list-group-flush">
+    {% for task in plan.tasks %}
+    <div class="list-group-item p-3 p-md-4">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="badge text-bg-secondary">Due {{ task.due_date }}</span>
+            <span class="badge text-bg-dark border border-secondary">{{ task.category }}</span>
+            {% if task.status == 'completed' %}
+              <span class="badge text-bg-success">Completed</span>
+            {% elif task.status == 'in_progress' %}
+              <span class="badge text-bg-warning">In Progress</span>
+            {% else %}
+              <span class="badge text-bg-info">Pending</span>
+            {% endif %}
+          </div>
+          <h3 class="h6 fw-bold mb-1 {% if task.status == 'completed' %}text-decoration-line-through text-muted{% endif %}">
+            {{ task.title }}
+          </h3>
+          <p class="small text-muted mb-0">{{ task.description }}</p>
+        </div>
+
+        <form method="post" action="{{ url_for('planner_page') }}" class="d-flex flex-shrink-0 gap-2">
+          <input type="hidden" name="action" value="update_status">
+          <input type="hidden" name="student_id" value="{{ assessment.student.id }}">
+          <input type="hidden" name="task_id" value="{{ task.id }}">
+          {% if task.status != 'in_progress' and task.status != 'completed' %}
+          <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-outline-primary">
+            Start
+          </button>
+          {% endif %}
+          {% if task.status != 'completed' %}
+          <button type="submit" name="status" value="completed" class="btn btn-sm btn-primary">
+            Mark Done
+          </button>
+          {% else %}
+          <button type="submit" name="status" value="pending" class="btn btn-sm btn-outline-secondary">
+            Reopen
+          </button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+<div class="card p-4 text-center">
+  <p class="text-muted mb-0">
+    Choose your target interview date above and click <strong>Generate Preparation Plan</strong> to build your schedule.
+  </p>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

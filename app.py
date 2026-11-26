@@ -25,6 +25,7 @@ from flask import Flask, render_template
 from database import DEFAULT_DB_PATH, init_db
 from modules import assessment as assessment_module  # Member 1's feature
 from modules import planner as planner_module        # Member 2's feature
+from modules import progress as progress_module      # Member 3's feature
 
 # Information shown on the home page and on the placeholder pages.
 # When a module is finished, set "ready" to True (see the README for the steps).
@@ -54,7 +55,7 @@ MODULES = {
         "summary": "Track practice results and task completion with charts.",
         "endpoint": "progress_page",
         "module_file": "progress.py",
-        "ready": False,
+        "ready": True,
     },
 }
 
@@ -108,10 +109,10 @@ def register_routes(app):
         # Member 2: all the work is done in modules/planner.py.
         return planner_module.handle_planner_request(app.config["DATABASE"])
 
-    @app.route("/progress")
+    @app.route("/progress", methods=["GET", "POST"])
     def progress_page():
-        # TODO (Member 3): call the progress module here.
-        return render_template("placeholder.html", module=MODULES["progress"])
+        # Member 3: all the work is done in modules/progress.py.
+        return progress_module.handle_progress_request(app.config["DATABASE"])
 
 
 # "python app.py" starts the development server.

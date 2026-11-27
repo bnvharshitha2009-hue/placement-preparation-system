@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS preparation_tasks (
     description          TEXT,
     category             TEXT,
     due_date             TEXT,               -- YYYY-MM-DD
+    time_slot            TEXT,               -- e.g. '18:00 - 19:30'
+    estimated_minutes    INTEGER NOT NULL DEFAULT 60,
+    sort_order           INTEGER NOT NULL DEFAULT 0,
     status               TEXT NOT NULL DEFAULT 'pending'
                          CHECK (status IN ('pending', 'in_progress', 'completed')),
     created_at           TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -100,14 +103,59 @@ CREATE TABLE IF NOT EXISTS practice_results (
     FOREIGN KEY (task_id) REFERENCES preparation_tasks(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_logins (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id            INTEGER,
+    full_name             TEXT NOT NULL,
+    gmail                 TEXT NOT NULL UNIQUE,
+    university_name       TEXT NOT NULL,
+    verifier_email        TEXT,
+    verification_code     TEXT,
+    verification_token    TEXT,
+    verification_sent_to  TEXT,
+    delivery_mode         TEXT NOT NULL DEFAULT 'local_preview'
+                          CHECK (delivery_mode IN ('gmail_smtp', 'local_preview')),
+    status                TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'verified')),
+    sent_at               TEXT,
+    verified_at           TEXT,
+    current_streak        INTEGER NOT NULL DEFAULT 0,
+    best_streak           INTEGER NOT NULL DEFAULT 0,
+    last_login_date       TEXT,
+    total_login_days      INTEGER NOT NULL DEFAULT 0,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_question_sets (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id    INTEGER NOT NULL,
+    category_key  TEXT NOT NULL,
+    topic_focus   TEXT,
+    difficulty    TEXT NOT NULL DEFAULT 'standard',
+    model_name    TEXT NOT NULL DEFAULT 'gemini-4-hydrogen',
+    questions_json TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_skill_assessments_student ON skill_assessments(student_id);
 CREATE INDEX IF NOT EXISTS idx_preparation_tasks_student ON preparation_tasks(student_id);
 CREATE INDEX IF NOT EXISTS idx_preparation_tasks_status  ON preparation_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_practice_results_student  ON practice_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_user_logins_gmail         ON user_logins(gmail);
+CREATE INDEX IF NOT EXISTS idx_ai_question_sets_student  ON ai_question_sets(student_id);
 """
 
 # Names of the tables created above (handy for checks and documentation).
-TABLE_NAMES = ("students", "skill_assessments", "preparation_tasks", "practice_results")
+TABLE_NAMES = (
+    "students",
+    "skill_assessments",
+    "preparation_tasks",
+    "practice_results",
+    "user_logins",
+    "ai_question_sets",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,9 +190,39 @@ def db_session(db_path=None):
 
 
 def init_db(db_path=None):
-    """Create all shared tables. Safe to call many times (IF NOT EXISTS)."""
+    """Create all shared tables and apply safe additive column migrations."""
     with db_session(db_path) as conn:
         conn.executescript(SCHEMA)
+        _ensure_columns(
+            conn,
+            "user_logins",
+            (
+                ("current_streak", "INTEGER NOT NULL DEFAULT 0"),
+                ("best_streak", "INTEGER NOT NULL DEFAULT 0"),
+                ("last_login_date", "TEXT"),
+                ("total_login_days", "INTEGER NOT NULL DEFAULT 0"),
+            ),
+        )
+        _ensure_columns(
+            conn,
+            "preparation_tasks",
+            (
+                ("time_slot", "TEXT"),
+                ("estimated_minutes", "INTEGER NOT NULL DEFAULT 60"),
+                ("sort_order", "INTEGER NOT NULL DEFAULT 0"),
+            ),
+        )
+
+
+def _ensure_columns(conn, table_name, columns):
+    """Safely add missing additive columns to an existing SQLite table."""
+    existing_cols = {
+        row["name"]
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    for col_name, col_def in columns:
+        if col_name not in existing_cols:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
 
 
 # ---------------------------------------------------------------------------

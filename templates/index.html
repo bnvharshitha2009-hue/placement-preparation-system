@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Placement Preparation System{% endblock %}
+{% block title %}Home - PLACEMENT HUB{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
@@ -21,12 +21,19 @@
     <a href="{{ url_for('planner_page') }}" class="btn btn-outline-primary btn-lg px-4">
       Open Preparation Planner
     </a>
+    <a href="{{ url_for('login_page') }}" class="btn btn-outline-secondary btn-lg px-4">
+      {% if current_user %}
+        Account: {{ current_user.university_name }} ({{ 'Verified' if current_user.status == 'verified' else 'Verify' }})
+      {% else %}
+        Gmail &amp; University Login
+      {% endif %}
+    </a>
   </div>
 </div>
 
-<!-- Three module cards. Links use the route names defined in app.py. -->
+<!-- Four module cards. Links use the route names defined in app.py. -->
 <div class="row g-4">
-  <div class="col-md-4">
+  <div class="col-md-6 col-xl-3">
     <div class="card card-hover h-100">
       <div class="card-body text-center d-flex flex-column p-4">
         <div class="display-4 mb-2">🧠</div>
@@ -45,7 +52,7 @@
     </div>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-6 col-xl-3">
     <div class="card card-hover h-100">
       <div class="card-body text-center d-flex flex-column p-4">
         <div class="display-4 mb-2">🗓️</div>
@@ -63,7 +70,25 @@
     </div>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-6 col-xl-3">
+    <div class="card card-hover h-100">
+      <div class="card-body text-center d-flex flex-column p-4">
+        <div class="display-4 mb-2">📝</div>
+        <h5 class="card-title fw-bold mt-2">Practice &amp; Test Schedule</h5>
+        <p class="card-text text-muted">
+          Follow scheduled CareerRide topic drills, take timed mock tests, and sync completed work.
+        </p>
+        <p class="small mb-3">
+          {% if modules.practice.ready %}<span class="badge text-bg-success">Ready</span>
+          {% else %}<span class="badge text-bg-secondary">Coming soon</span>{% endif %}
+          <span class="text-muted">&middot; {{ modules.practice.member }}</span>
+        </p>
+        <a href="{{ url_for('practice_page') }}" class="btn btn-primary mt-auto">Open Practice &amp; Tests</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xl-3">
     <div class="card card-hover h-100">
       <div class="card-body text-center d-flex flex-column p-4">
         <div class="display-4 mb-2">📈</div>

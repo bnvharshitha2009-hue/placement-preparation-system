@@ -32,6 +32,7 @@ from datetime import datetime
 from flask import current_app, redirect, render_template, request, session, url_for
 
 from database import db_session, fetch_all, fetch_one
+from modules import auth as auth_module
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -468,6 +469,10 @@ def save_assessment(student, ratings, db_path=None, scores=None):
                 for r in results
             ],
         )
+        conn.execute(
+            "UPDATE user_logins SET student_id = ? WHERE gmail = ?",
+            (student_id, email),
+        )
     return {"student_id": student_id, "assessed_at": assessed_at}
 
 
@@ -622,4 +627,11 @@ def handle_assessment_request(db_path):
 
     requested_set = request.args.get("set", type=int)
     active_set = select_next_question_set(requested_set)
-    return _render_form(question_set=active_set)
+    logged_user = auth_module.get_logged_in_user(db_path)
+    prefill = None
+    if logged_user:
+        prefill = {
+            "name": logged_user.get("full_name", ""),
+            "email": logged_user.get("gmail", ""),
+        }
+    return _render_form(form=prefill, question_set=active_set)

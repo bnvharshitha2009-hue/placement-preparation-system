@@ -24,7 +24,9 @@ from flask import Flask, render_template
 
 from database import DEFAULT_DB_PATH, init_db
 from modules import assessment as assessment_module  # Member 1's feature
+from modules import auth as auth_module              # User Gmail + University verification
 from modules import planner as planner_module        # Member 2's feature
+from modules import practice as practice_module      # Practice & Test Schedule tab
 from modules import progress as progress_module      # Member 3's feature
 
 # Information shown on the home page and on the placeholder pages.
@@ -48,6 +50,15 @@ MODULES = {
         "module_file": "planner.py",
         "ready": True,
     },
+    "practice": {
+        "title": "Practice & Test Schedule",
+        "icon": "📝",
+        "member": "Member 2",
+        "summary": "Practise scheduled topic drills and timed mock tests synced with your planner.",
+        "endpoint": "practice_page",
+        "module_file": "practice.py",
+        "ready": True,
+    },
     "progress": {
         "title": "Progress Tracking",
         "icon": "📈",
@@ -60,11 +71,44 @@ MODULES = {
 }
 
 
+def load_env_file(env_path=None):
+    """
+    Load KEY=VALUE pairs from a local .env file into os.environ without
+    overwriting variables already set in the terminal.
+    """
+    path = env_path or os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.isfile(path):
+        return {}
+
+    loaded = {}
+    with open(path, encoding="utf-8") as fh:
+        for raw_line in fh:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            if key:
+                os.environ.setdefault(key, value)
+                loaded[key] = value
+    return loaded
+
+
 def create_app(config=None):
     """
     Application factory. Tests can pass their own settings, for example:
         create_app({"TESTING": True, "DATABASE": "test.db"})
     """
+    if not (config and config.get("TESTING")):
+        load_env_file()
+
     app = Flask(__name__)
 
     # SECRET_KEY signs sessions and flash messages. For real use, set the
@@ -86,12 +130,36 @@ def register_routes(app):
 
     @app.context_processor
     def inject_modules():
-        # Makes "modules" available in every template (used by the navbar).
-        return {"modules": MODULES}
+        # Makes "modules", logged-in user, and one-time login streak popup available in templates.
+        return {
+            "modules": MODULES,
+            "current_user": auth_module.get_logged_in_user(app.config["DATABASE"]),
+            "streak_effect": auth_module.consume_streak_effect(),
+        }
 
     @app.route("/")
     def index():
         return render_template("index.html")
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login_page():
+        return auth_module.handle_login_request(app.config["DATABASE"])
+
+    @app.route("/profile")
+    def profile_page():
+        return auth_module.handle_profile_request(app.config["DATABASE"])
+
+    @app.route("/verify", methods=["GET", "POST"])
+    def verify_page():
+        return auth_module.handle_verify_request(app.config["DATABASE"])
+
+    @app.route("/login/resend", methods=["POST"])
+    def resend_verification():
+        return auth_module.handle_resend_request(app.config["DATABASE"])
+
+    @app.route("/logout", methods=["POST"])
+    def logout_page():
+        return auth_module.handle_logout_request()
 
     # ------------------------------------------------------------------
     # Placeholder routes. Each one only shows a "coming soon" page.
@@ -108,6 +176,10 @@ def register_routes(app):
     def planner_page():
         # Member 2: all the work is done in modules/planner.py.
         return planner_module.handle_planner_request(app.config["DATABASE"])
+
+    @app.route("/practice", methods=["GET", "POST"])
+    def practice_page():
+        return practice_module.handle_practice_request(app.config["DATABASE"])
 
     @app.route("/progress", methods=["GET", "POST"])
     def progress_page():

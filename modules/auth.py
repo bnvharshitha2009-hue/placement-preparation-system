@@ -192,10 +192,10 @@ def resolve_recipients(gmail, verifier_email=None):
 
 def build_verification_email(gmail, full_name, university_name, otp_code, verify_url, recipients):
     """Build verification subject & body containing Gmail + University Name."""
-    subject = f"PLACEMENT HUB University Verification: {university_name}"
+    subject = f"Hogwarts Placement Hub University Verification: {university_name}"
     body = (
         f"Hello {full_name},\n\n"
-        "A university verification request was submitted on PLACEMENT HUB:\n\n"
+        "A university verification request was submitted on Hogwarts Placement Hub:\n\n"
         f"  Student Gmail   : {gmail}\n"
         f"  University Name : {university_name}\n"
         f"  Verification OTP: {otp_code}\n\n"

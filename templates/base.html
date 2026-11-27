@@ -3,28 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}PLACEMENT HUB{% endblock %}</title>
+  <title>{% block title %}HOGWARTS PLACEMENT HUB{% endblock %}</title>
 
-  <!-- Plus Jakarta Sans font for modern portfolio aesthetic -->
+  <!-- Cinzel (Hogwarts crest display font) & Plus Jakarta Sans (UI body font) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Bootstrap 5 (free CDN, needs internet) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
   {% block extra_css %}{% endblock %}
 </head>
-<body class="app-shell">
+<body class="{% block body_class %}app-shell{% endblock %}">
 
   <!-- Vertical left sidebar navigation (shown on every page; collapses cleanly on mobile).
        The link targets are the route names that exist in app.py:
-       index, assessment_page, planner_page, progress_page, login_page -->
+       index, assessment_page, planner_page, practice_page, progress_page, profile_page, login_page -->
   <nav class="navbar navbar-expand-lg navbar-dark portfolio-navbar portfolio-sidebar">
     <div class="sidebar-inner d-flex flex-column w-100 h-100">
       <div class="d-flex align-items-center justify-content-between w-100 sidebar-brand-row">
-        <a class="navbar-brand fw-bold d-flex align-items-center mb-0" href="{{ url_for('index') }}">
-          <span class="text-gradient">PLACEMENT HUB</span>
+        <a class="navbar-brand fw-bold d-flex align-items-center gap-2 mb-0" href="{{ url_for('index') }}">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f5c451" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="12 3 21 20 3 20"></polygon>
+            <circle cx="12" cy="14.5" r="3.6"></circle>
+            <line x1="12" y1="3" x2="12" y2="20"></line>
+          </svg>
+          <span class="d-flex flex-column lh-1">
+            <span class="text-gradient brand-cinzel" style="font-size: 0.96rem; letter-spacing: 0.14em;">HOGWARTS</span>
+            <span class="brand-cinzel" style="font-size: 0.68rem; letter-spacing: 0.16em; color: #e2d4bc; margin-top: 2px;">PLACEMENT HUB</span>
+          </span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                 data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false"
@@ -193,7 +201,7 @@
             </form>
             {% else %}
             <div class="mb-2">
-              <div class="fw-bold text-white">Welcome to PLACEMENT HUB</div>
+              <div class="fw-bold text-white">Welcome to Hogwarts Placement Hub</div>
               <div class="small text-muted">Log in with Gmail &amp; verify your university to track your profile and daily streak.</div>
             </div>
             <a class="btn btn-primary btn-sm w-100" href="{{ url_for('login_page') }}">🔐 Login &amp; Verify</a>
@@ -204,7 +212,7 @@
     </header>
 
     <!-- Flash messages (success / error notices) -->
-    <div class="container mt-3">
+    <div class="container mt-3 position-relative" style="z-index: 2;">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
           <div class="alert alert-{{ category if category in ['success', 'danger', 'warning', 'info'] else 'info' }} alert-dismissible fade show" role="alert">
@@ -216,12 +224,12 @@
     </div>
 
     <!-- Each page puts its own content in this block -->
-    <main class="container my-4 flex-grow-1">
+    <main class="{% block main_class %}container my-4 flex-grow-1 position-relative{% endblock %}" style="z-index: 2;">
       {% block content %}{% endblock %}
     </main>
 
-    <footer class="text-center small py-3 border-top portfolio-footer">
-      PLACEMENT HUB &middot; Placement Preparation and Skill Gap Analysis
+    <footer class="text-center small py-3 border-top portfolio-footer position-relative" style="z-index: 2;">
+      HOGWARTS PLACEMENT HUB &middot; Enchanted Wizarding Placement Sanctuary
     </footer>
   </div>
 

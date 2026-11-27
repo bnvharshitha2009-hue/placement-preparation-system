@@ -671,3 +671,53 @@ class TestProfileAndStreakSystem:
         assert 'data-streak="2"' in revisit_html
         row = rows(db_path, "SELECT current_streak, best_streak, total_login_days FROM user_logins WHERE id = ?", (user_id,))[0]
         assert (row["current_streak"], row["best_streak"], row["total_login_days"]) == (2, 2, 2)
+
+
+class TestHomepageHeroAndVideo:
+    def test_homepage_contains_cursor_scrub_video_and_harry_potter_hero(self, app):
+        with app.test_client() as client:
+            resp = client.get("/")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+
+        for vid_id in ("hp-cursor-video", "hp-cursor-video-right"):
+            video_match = re.search(rf'<video\b[^>]*id="{vid_id}"[^>]*>', html)
+            assert video_match is not None
+            video_tag = video_match.group(0)
+            assert "muted" in video_tag
+            assert "playsinline" in video_tag
+            assert 'preload="auto"' in video_tag
+            assert "autoplay" not in video_tag.lower()
+
+        assert "Hogwarts Placement Hub" in html
+        assert "HOGWARTS PLACEMENT HUB" in html
+        assert "video/harryvid1.mp4" in html
+        assert "video/uibackground.mp4" in html
+        assert 'id="hp-character-viewport"' in html
+        assert "computeEyeTrackTarget" in html
+        assert "getEyeAnchorScreenCoords" in html
+        assert "tickSmoothScrub" in html
+        assert "hp-house-card" in html
+        for house in ("Gryffindor", "Ravenclaw", "Hufflepuff", "Slytherin"):
+            assert house in html
+        assert 'id="hp-lumos-glow"' in html
+        assert 'id="hp-typewriter-text"' in html
+        assert 'id="hp-action-pills"' in html
+        assert "owlpost@placementhub.edu" not in html
+        assert "Move cursor left" not in html
+
+        for route in ("/assessment", "/planner", "/practice", "/progress", "/login"):
+            assert route in html
+
+    def test_uibackground_video_asset_is_served(self, app):
+        for filename in ("harryvid1.mp4", "uibackground.mp4"):
+            video_path = os.path.join(app.static_folder, "video", filename)
+            assert os.path.isfile(video_path)
+            assert os.path.getsize(video_path) > 0
+
+            with app.test_client() as client:
+                resp = client.get(f"/static/video/{filename}")
+                try:
+                    assert resp.status_code in (200, 206)
+                finally:
+                    resp.close()

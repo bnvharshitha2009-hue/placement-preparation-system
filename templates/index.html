@@ -1,109 +1,394 @@
 {% extends "base.html" %}
 
-{% block title %}Home - PLACEMENT HUB{% endblock %}
+{% block title %}Home - Hogwarts Placement Hub{% endblock %}
+{% block body_class %}app-shell hp-home-body{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<div class="p-4 p-md-5 mb-5 hero-card text-center">
-  <div class="mb-3">
-    <span class="hero-badge">Campus Placement Readiness Platform</span>
-  </div>
-  <h1 class="display-5 fw-bold mb-3">
-    Placement Preparation &amp; <span class="text-gradient">Skill Gap Analysis</span>
-  </h1>
-  <p class="lead text-muted mx-auto mb-4" style="max-width: 720px;">
-    Find out where you stand, turn your skill gaps into an interview-ready timeline, and track your progress.
-  </p>
-  <div class="d-flex flex-wrap justify-content-center gap-3">
-    <a href="{{ url_for('assessment_page') }}" class="btn btn-primary btn-lg px-4">
-      Start Skill Assessment
-    </a>
-    <a href="{{ url_for('planner_page') }}" class="btn btn-outline-primary btn-lg px-4">
-      Open Preparation Planner
-    </a>
-    <a href="{{ url_for('login_page') }}" class="btn btn-outline-secondary btn-lg px-4">
-      {% if current_user %}
-        Account: {{ current_user.university_name }} ({{ 'Verified' if current_user.status == 'verified' else 'Verify' }})
-      {% else %}
-        Gmail &amp; University Login
-      {% endif %}
-    </a>
+<!-- Fixed Right-Side Character Video Backdrop (Aligned Dual-Direction Native HD Eye Tracking) -->
+<div class="hp-video-stage" aria-hidden="true">
+  <div class="hp-character-viewport" id="hp-character-viewport">
+    <video id="hp-cursor-video-right"
+           class="hp-hero-video hp-hero-video-right is-hidden"
+           muted
+           playsinline
+           preload="auto">
+      <source src="{{ url_for('static', filename='video/uibackground.mp4') }}" type="video/mp4">
+    </video>
+    <video id="hp-cursor-video"
+           class="hp-hero-video"
+           muted
+           playsinline
+           preload="auto">
+      <source src="{{ url_for('static', filename='video/harryvid1.mp4') }}" type="video/mp4">
+    </video>
   </div>
 </div>
 
-<!-- Four module cards. Links use the route names defined in app.py. -->
-<div class="row g-4">
-  <div class="col-md-6 col-xl-3">
-    <div class="card card-hover h-100">
-      <div class="card-body text-center d-flex flex-column p-4">
-        <div class="display-4 mb-2">🧠</div>
-        <h5 class="card-title fw-bold mt-2">Skill Assessment</h5>
-        <p class="card-text text-muted">
-          Answer real aptitude, coding, technical and HR interview questions
-          to measure your true skill levels and pinpoint your skill gaps.
-        </p>
-        <p class="small mb-3">
-          {% if modules.assessment.ready %}<span class="badge text-bg-success">Ready</span>
-          {% else %}<span class="badge text-bg-secondary">Coming soon</span>{% endif %}
-          <span class="text-muted">&middot; {{ modules.assessment.member }}</span>
-        </p>
-        <a href="{{ url_for('assessment_page') }}" class="btn btn-primary mt-auto">Open Skill Assessment</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-6 col-xl-3">
-    <div class="card card-hover h-100">
-      <div class="card-body text-center d-flex flex-column p-4">
-        <div class="display-4 mb-2">🗓️</div>
-        <h5 class="card-title fw-bold mt-2">Preparation Planner</h5>
-        <p class="card-text text-muted">
-          Turn your skill gaps into a personalized day-by-day study plan tailored to your interview date.
-        </p>
-        <p class="small mb-3">
-          {% if modules.planner.ready %}<span class="badge text-bg-success">Ready</span>
-          {% else %}<span class="badge text-bg-secondary">Coming soon</span>{% endif %}
-          <span class="text-muted">&middot; {{ modules.planner.member }}</span>
-        </p>
-        <a href="{{ url_for('planner_page') }}" class="btn btn-primary mt-auto">Open Preparation Planner</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-6 col-xl-3">
-    <div class="card card-hover h-100">
-      <div class="card-body text-center d-flex flex-column p-4">
-        <div class="display-4 mb-2">📝</div>
-        <h5 class="card-title fw-bold mt-2">Practice &amp; Test Schedule</h5>
-        <p class="card-text text-muted">
-          Follow scheduled CareerRide topic drills, take timed mock tests, and sync completed work.
-        </p>
-        <p class="small mb-3">
-          {% if modules.practice.ready %}<span class="badge text-bg-success">Ready</span>
-          {% else %}<span class="badge text-bg-secondary">Coming soon</span>{% endif %}
-          <span class="text-muted">&middot; {{ modules.practice.member }}</span>
-        </p>
-        <a href="{{ url_for('practice_page') }}" class="btn btn-primary mt-auto">Open Practice &amp; Tests</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-6 col-xl-3">
-    <div class="card card-hover h-100">
-      <div class="card-body text-center d-flex flex-column p-4">
-        <div class="display-4 mb-2">📈</div>
-        <h5 class="card-title fw-bold mt-2">Progress Dashboard</h5>
-        <p class="card-text text-muted">
-          Track practice results and completed tasks with charts.
-        </p>
-        <p class="small mb-3">
-          {% if modules.progress.ready %}<span class="badge text-bg-success">Ready</span>
-          {% else %}<span class="badge text-bg-secondary">Coming soon</span>{% endif %}
-          <span class="text-muted">&middot; {{ modules.progress.member }}</span>
-        </p>
-        <a href="{{ url_for('progress_page') }}" class="btn btn-primary mt-auto">Open Progress Dashboard</a>
-      </div>
-    </div>
-  </div>
+<!-- Great Hall Drifting Candlelight Embers & Lumos Cursor Halo -->
+<div class="hp-embers d-none d-md-block" aria-hidden="true">
+  <span class="hp-ember" style="left: 20%; --dur: 9s; --delay: 0s;"></span>
+  <span class="hp-ember" style="left: 28%; --dur: 12s; --delay: 2s;"></span>
+  <span class="hp-ember" style="left: 36%; --dur: 10s; --delay: 4s;"></span>
+  <span class="hp-ember" style="left: 44%; --dur: 13s; --delay: 1s;"></span>
+  <span class="hp-ember" style="left: 52%; --dur: 11s; --delay: 3s;"></span>
+  <span class="hp-ember" style="left: 58%; --dur: 14s; --delay: 5s;"></span>
 </div>
+<div id="hp-lumos-glow" class="hp-lumos-glow d-none d-lg-block" aria-hidden="true"></div>
+
+<!-- Single-Fold Minimal Hogwarts Chamber Hero + 4 House Portals -->
+<section class="hp-hero-section">
+  <div style="max-width: 610px;">
+    <div class="mb-3">
+      <span class="hero-badge d-inline-flex align-items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="12 3 21 20 3 20"></polygon>
+          <circle cx="12" cy="14.5" r="3.4"></circle>
+          <line x1="12" y1="3" x2="12" y2="20"></line>
+        </svg>
+        Hogwarts Career Chamber
+      </span>
+    </div>
+
+    <h1 class="display-5 fw-bold mb-2">
+      Placement <span class="text-gradient">Trials</span>
+    </h1>
+
+    <p class="hp-typewriter mb-4" id="hp-typewriter-target">
+      <span id="hp-typewriter-text"></span><span id="hp-typewriter-cursor" class="hp-typewriter-cursor"></span>
+    </p>
+
+    <div id="hp-action-pills" class="hp-pills-wrap mb-4">
+      <a href="{{ url_for('assessment_page') }}" class="hp-pill-btn">
+        ⚡ Begin O.W.L. Trial
+      </a>
+      <a href="{{ url_for('login_page') }}" class="hp-pill-outline text-decoration-none">
+        {% if current_user %}
+          🏰 {{ current_user.university_name }} ({{ 'Verified' if current_user.status == 'verified' else 'Verify' }})
+        {% else %}
+          🦉 Owl Post Login
+        {% endif %}
+      </a>
+    </div>
+
+    <!-- 4 Compact Hogwarts House Portals -->
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="hp-house-card hp-house-gryffindor h-100" style="--stagger: 0.12s;">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="hp-house-tag">🦁 Gryffindor</span>
+            <span class="hp-wax-seal">{% if modules.assessment.ready %}Ready{% else %}Locked{% endif %}</span>
+          </div>
+          <h2 class="hp-house-title">Skill Assessment</h2>
+          <a href="{{ url_for('assessment_page') }}" class="hp-house-cta text-decoration-none stretched-link mt-auto">
+            Enter Trial &rarr;
+          </a>
+        </div>
+      </div>
+
+      <div class="col-sm-6">
+        <div class="hp-house-card hp-house-ravenclaw h-100" style="--stagger: 0.20s;">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="hp-house-tag">🦅 Ravenclaw</span>
+            <span class="hp-wax-seal">{% if modules.planner.ready %}Ready{% else %}Locked{% endif %}</span>
+          </div>
+          <h2 class="hp-house-title">Preparation Planner</h2>
+          <a href="{{ url_for('planner_page') }}" class="hp-house-cta text-decoration-none stretched-link mt-auto">
+            Open Map &rarr;
+          </a>
+        </div>
+      </div>
+
+      <div class="col-sm-6">
+        <div class="hp-house-card hp-house-hufflepuff h-100" style="--stagger: 0.28s;">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="hp-house-tag">🦡 Hufflepuff</span>
+            <span class="hp-wax-seal">{% if modules.practice.ready %}Ready{% else %}Locked{% endif %}</span>
+          </div>
+          <h2 class="hp-house-title">Practice &amp; Test Schedule</h2>
+          <a href="{{ url_for('practice_page') }}" class="hp-house-cta text-decoration-none stretched-link mt-auto">
+            Cast Drills &rarr;
+          </a>
+        </div>
+      </div>
+
+      <div class="col-sm-6">
+        <div class="hp-house-card hp-house-slytherin h-100" style="--stagger: 0.36s;">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="hp-house-tag">🐍 Slytherin</span>
+            <span class="hp-wax-seal">{% if modules.progress.ready %}Ready{% else %}Locked{% endif %}</span>
+          </div>
+          <h2 class="hp-house-title">Progress Dashboard</h2>
+          <a href="{{ url_for('progress_page') }}" class="hp-house-cta text-decoration-none stretched-link mt-auto">
+            Read Prophecy &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // -------------------------------------------------------------------------
+  // 1. Native <video> Bidirectional 2D Eye-Tracking Controller (60fps Hybrid)
+  // -------------------------------------------------------------------------
+  const videoLeft = document.getElementById("hp-cursor-video");
+  const videoRight = document.getElementById("hp-cursor-video-right");
+  const viewportEl = document.getElementById("hp-character-viewport");
+
+  if (videoLeft) {
+    function clampTime(val, dur) {
+      return Math.max(0, Math.min(dur, val));
+    }
+
+    function createVideoChannel(vid) {
+      if (!vid) return null;
+      let targetT = 0;
+      let isSeeking = false;
+      let queuedSeek = false;
+      let initialized = false;
+      let canForwardPlay = true;
+
+      function executeSeek(t) {
+        if (!vid.duration || Number.isNaN(vid.duration)) return;
+        const clamped = clampTime(t, vid.duration);
+        if (isSeeking) {
+          queuedSeek = true;
+          return;
+        }
+        if (Math.abs(vid.currentTime - clamped) < 0.012) return;
+        isSeeking = true;
+        queuedSeek = false;
+        vid.currentTime = clamped;
+      }
+
+      function initVid() {
+        if (initialized || !vid.duration || Number.isNaN(vid.duration)) return;
+        initialized = true;
+        vid.pause();
+        executeSeek(0);
+      }
+
+      vid.addEventListener("loadedmetadata", initVid);
+      if (vid.readyState >= 1) initVid();
+
+      vid.addEventListener("seeked", () => {
+        isSeeking = false;
+        if (queuedSeek && (!canForwardPlay || vid.currentTime - targetT > 0.015)) {
+          executeSeek(targetT);
+        }
+      });
+
+      return {
+        isReady: () => initialized && Boolean(vid.duration) && !Number.isNaN(vid.duration),
+        getTime: () => vid.currentTime || 0,
+        setTarget: (t) => { targetT = Math.max(0, t); },
+        drive: () => {
+          if (!initialized || !vid.duration || Number.isNaN(vid.duration)) return;
+          const diff = targetT - vid.currentTime;
+          if (diff < -0.018 || (!canForwardPlay && Math.abs(diff) > 0.015)) {
+            if (!vid.paused) vid.pause();
+            executeSeek(targetT);
+          } else if (!isSeeking) {
+            if (canForwardPlay && diff > 0.02) {
+              const speed = Math.min(12.0, Math.max(0.85, diff * 13.0));
+              try {
+                vid.playbackRate = speed;
+              } catch (_) {
+                try { vid.playbackRate = Math.min(4.0, speed); } catch (_) {}
+              }
+              if (vid.paused) {
+                const p = vid.play();
+                if (p && typeof p.catch === "function") {
+                  p.catch(() => {
+                    canForwardPlay = false;
+                    executeSeek(targetT);
+                  });
+                }
+              }
+            } else if (!vid.paused) {
+              vid.pause();
+            }
+          }
+        }
+      };
+    }
+
+    const leftCh = createVideoChannel(videoLeft);
+    const rightCh = createVideoChannel(videoRight);
+    let activeSide = "left";
+    let rawSignedTarget = 0;
+    let smoothedSigned = 0;
+
+    function getEyeAnchorScreenCoords() {
+      const box = (viewportEl || videoLeft).getBoundingClientRect();
+      return {
+        x: box.left + 0.723 * box.width,
+        y: box.top + 0.34 * box.height
+      };
+    }
+
+    function computeEyeTrackTarget(clientX, clientY) {
+      if (!leftCh.isReady()) return 0;
+      const eye = getEyeAnchorScreenCoords();
+      const dx = clientX - eye.x;
+      const dy = clientY - eye.y;
+
+      // Cursor to character's left (screen right): uibackground.mp4 [0.00s .. +1.65s]
+      if (dx > 8) {
+        const rightSpan = Math.max(85, (window.innerWidth - eye.x) * 0.72);
+        const rightAmt = Math.min(1, (dx - 8) / rightSpan);
+        return rightAmt * 1.65;
+      }
+
+      // Near center: face visitor directly (0.00s)
+      if (dx >= -8) {
+        return 0;
+      }
+
+      // Cursor to character's right (screen left): harryvid1.mp4 [0.00s .. -3.25s]
+      const leftSpan = Math.max(180, eye.x * 0.52);
+      const upSpan = Math.max(85, eye.y * 0.65);
+      const downSpan = Math.max(130, (window.innerHeight - eye.y) * 0.65);
+
+      const leftAmt = Math.min(1, (-dx - 8) / leftSpan);
+      const upAmt = dy < 0 ? Math.min(1, (-dy) / upSpan) : 0;
+      const downAmt = dy > 0 ? Math.min(1, dy / downSpan) : 0;
+
+      const horizontalReach = leftAmt * 1.65 * (1 - downAmt * 0.22);
+      const verticalLift = upAmt * leftAmt * 1.55;
+      return -Math.min(3.25, horizontalReach + verticalLift);
+    }
+
+    let prevNow = performance.now();
+    function tickSmoothScrub(now) {
+      const dtSec = Math.min(0.05, Math.max(0.001, (now - prevNow) / 1000));
+      prevNow = now;
+
+      const alpha = 1 - Math.exp(-26 * dtSec);
+      smoothedSigned += (rawSignedTarget - smoothedSigned) * alpha;
+
+      if (activeSide === "left") {
+        if (smoothedSigned > 0.02 && rightCh && rightCh.isReady()) {
+          leftCh.setTarget(0);
+          leftCh.drive();
+          if (leftCh.getTime() <= 0.08) {
+            activeSide = "right";
+            videoLeft.classList.add("is-hidden");
+            videoRight.classList.remove("is-hidden");
+            rightCh.setTarget(smoothedSigned);
+            rightCh.drive();
+          }
+        } else {
+          leftCh.setTarget(Math.max(0, -smoothedSigned));
+          leftCh.drive();
+        }
+      } else if (rightCh) {
+        if (smoothedSigned < -0.02) {
+          rightCh.setTarget(0);
+          rightCh.drive();
+          if (rightCh.getTime() <= 0.08) {
+            activeSide = "left";
+            videoRight.classList.add("is-hidden");
+            videoLeft.classList.remove("is-hidden");
+            leftCh.setTarget(-smoothedSigned);
+            leftCh.drive();
+          }
+        } else {
+          rightCh.setTarget(Math.max(0, smoothedSigned));
+          rightCh.drive();
+        }
+      }
+
+      window.requestAnimationFrame(tickSmoothScrub);
+    }
+    window.requestAnimationFrame(tickSmoothScrub);
+
+    window.addEventListener("pointermove", (e) => {
+      rawSignedTarget = computeEyeTrackTarget(e.clientX, e.clientY);
+    }, { passive: true });
+    window.addEventListener("mousemove", (e) => {
+      rawSignedTarget = computeEyeTrackTarget(e.clientX, e.clientY);
+    }, { passive: true });
+    window.addEventListener("touchmove", (e) => {
+      if (e.touches && e.touches[0]) {
+        rawSignedTarget = computeEyeTrackTarget(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    document.addEventListener("mouseleave", () => {
+      rawSignedTarget = 0;
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Concise Hogwarts Typewriter Prompt (38ms per char, 500ms delay)
+  // -------------------------------------------------------------------------
+  const targetEl = document.getElementById("hp-typewriter-text");
+  const cursorEl = document.getElementById("hp-typewriter-cursor");
+  if (targetEl) {
+    const fullText = "Step inside the chamber. Which trial calls you?";
+    let idx = 0;
+    window.setTimeout(() => {
+      const timer = window.setInterval(() => {
+        idx += 1;
+        targetEl.textContent = fullText.slice(0, idx);
+        if (idx >= fullText.length) {
+          window.clearInterval(timer);
+          if (cursorEl) cursorEl.style.display = "none";
+        }
+      }, 38);
+    }, 500);
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Staggered Action Pills Entrance (350ms after load)
+  // -------------------------------------------------------------------------
+  const pillsWrap = document.getElementById("hp-action-pills");
+  if (pillsWrap) {
+    window.setTimeout(() => {
+      pillsWrap.classList.add("is-visible");
+    }, 350);
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. Smooth Spring-Trailing Lumos Wand-Tip Golden Cursor Halo
+  // -------------------------------------------------------------------------
+  const lumosEl = document.getElementById("hp-lumos-glow");
+  if (lumosEl) {
+    let targetLx = -999;
+    let targetLy = -999;
+    let currentLx = -999;
+    let currentLy = -999;
+    let lumosActive = false;
+
+    window.addEventListener("mousemove", (e) => {
+      targetLx = e.clientX - 110;
+      targetLy = e.clientY - 110;
+      if (!lumosActive) {
+        currentLx = targetLx;
+        currentLy = targetLy;
+        lumosActive = true;
+        lumosEl.classList.add("is-active");
+      }
+    }, { passive: true });
+
+    document.addEventListener("mouseleave", () => {
+      lumosActive = false;
+      lumosEl.classList.remove("is-active");
+    });
+
+    function tickLumos() {
+      if (lumosActive) {
+        currentLx += (targetLx - currentLx) * 0.16;
+        currentLy += (targetLy - currentLy) * 0.16;
+        lumosEl.style.transform = `translate3d(${currentLx.toFixed(1)}px, ${currentLy.toFixed(1)}px, 0)`;
+      }
+      window.requestAnimationFrame(tickLumos);
+    }
+    window.requestAnimationFrame(tickLumos);
+  }
+})();
+</script>
 {% endblock %}

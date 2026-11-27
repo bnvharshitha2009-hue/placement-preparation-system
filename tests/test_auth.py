@@ -11,7 +11,7 @@ import os
 import re
 import smtplib
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -598,4 +598,76 @@ class TestProfileAndStreakSystem:
             )
         database.init_db(legacy_db)
         cols = {r["name"] for r in database.fetch_all("PRAGMA table_info(user_logins)", db_path=legacy_db)}
-        assert {"current_streak", "best_streak", "last_login_date", "total_login_days"} <= cols
+        assert {"current_streak", "best_streak", "last_login_date", "last_streak_at", "total_login_days"} <= cols
+
+    def test_24h_visit_streak_evaluation(self):
+        t0 = datetime(2026, 11, 20, 10, 0, 0)
+        row = {
+            "current_streak": 1,
+            "best_streak": 1,
+            "total_login_days": 1,
+            "last_login_date": "2026-11-20",
+            "last_streak_at": t0.isoformat(timespec="seconds"),
+        }
+
+        # Within 24 hours -> no streak update
+        fields_early, ev_early = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=23))
+        assert fields_early is None
+        assert ev_early is None
+
+        # Exactly 24 hours later -> streak increments to 2
+        fields_24h, ev_24h = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=24))
+        assert fields_24h["current_streak"] == 2
+        assert fields_24h["best_streak"] == 2
+        assert fields_24h["total_login_days"] == 2
+        assert ev_24h["kind"] == "streak_kept"
+
+        # 48+ hours later -> streak resets to 1, best_streak preserved
+        fields_48h, ev_48h = auth_module.evaluate_24h_visit_streak(
+            {**row, "current_streak": 4, "best_streak": 4},
+            now_dt=t0 + timedelta(hours=49),
+        )
+        assert fields_48h["current_streak"] == 1
+        assert fields_48h["best_streak"] == 4
+        assert ev_48h["kind"] == "streak_broken"
+
+    def test_profile_animated_streak_only_for_logged_in_users_and_advances_after_24h(self, client, db_path):
+        # Guest user sees no animated streak on /profile
+        guest_profile = client.get("/profile").get_data(as_text=True)
+        assert 'id="profile-animated-streak"' not in guest_profile
+        assert "No Active User Logged In" in guest_profile
+
+        # Insert verified user whose last streak was 25 hours ago
+        past_25h = (datetime.now() - timedelta(hours=25)).isoformat(timespec="seconds")
+        past_date = (datetime.now() - timedelta(hours=25)).date().isoformat()
+        user_id = database.execute(
+            """
+            INSERT INTO user_logins (
+                full_name, gmail, university_name, status,
+                current_streak, best_streak, last_login_date, last_streak_at, total_login_days
+            ) VALUES (?, ?, ?, 'verified', 1, 1, ?, ?, 1)
+            """,
+            ("Asha Kumar", "asha.24h@gmail.com", "Anna University", past_date, past_25h),
+            db_path,
+        )
+
+        # Simulate signed-in session
+        with client.session_transaction() as sess:
+            sess["user_login_id"] = user_id
+            sess["user_gmail"] = "asha.24h@gmail.com"
+
+        # Clicking User Profile after 24h advances streak to 2 and shows animated flame UI
+        profile_html = client.get("/profile").get_data(as_text=True)
+        assert 'id="profile-animated-streak"' in profile_html
+        assert 'data-streak="2"' in profile_html
+        assert "Day Streak" in profile_html
+        assert "streak-flame-svg" in profile_html
+        assert "streak-week-row" in profile_html
+        assert "streak-mini-flame" in profile_html
+        assert "2d Streak" in profile_html
+
+        # Revisiting /profile immediately (<24h) does not double increment
+        revisit_html = client.get("/profile").get_data(as_text=True)
+        assert 'data-streak="2"' in revisit_html
+        row = rows(db_path, "SELECT current_streak, best_streak, total_login_days FROM user_logins WHERE id = ?", (user_id,))[0]
+        assert (row["current_streak"], row["best_streak"], row["total_login_days"]) == (2, 2, 2)

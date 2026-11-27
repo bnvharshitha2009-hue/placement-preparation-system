@@ -104,6 +104,78 @@
         {% endif %}
       </div>
       <div class="card-body p-4">
+        <!-- Animated Flame Streak Hero (shown for logged-in users) -->
+        <div id="profile-animated-streak"
+             class="profile-streak-hero text-center mb-4 {{ 'is-active' if user.current_streak > 0 else 'is-inactive' }}"
+             data-streak="{{ user.current_streak }}">
+          <div class="streak-flame-stage mx-auto" aria-hidden="true">
+            {% if user.current_streak > 0 %}
+            <div class="streak-sparks">
+              {% for i in range(8) %}
+              <span class="streak-spark" style="--spark-i: {{ i }};"></span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <svg class="streak-flame-svg" viewBox="0 0 120 144" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="flameOuterGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+                  <stop offset="0%" stop-color="#ff8c1a"/>
+                  <stop offset="60%" stop-color="#ff6a00"/>
+                  <stop offset="100%" stop-color="#ff4800"/>
+                </linearGradient>
+                <linearGradient id="flameInnerGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+                  <stop offset="0%" stop-color="#ffe14d"/>
+                  <stop offset="100%" stop-color="#ffb000"/>
+                </linearGradient>
+              </defs>
+              <!-- Outer flame -->
+              <path class="streak-flame-outer"
+                    d="M62 6 C62 6 96 36 104 68 C110 92 98 128 60 136 C24 128 10 96 18 66 C23 47 36 33 36 33 C36 33 34 50 43 56 C41 34 62 6 62 6 Z"
+                    fill="url(#flameOuterGrad)"/>
+              <!-- Inner golden flame core -->
+              <path class="streak-flame-inner"
+                    d="M60 48 C60 48 84 68 86 90 C88 110 76 128 60 132 C42 128 32 110 35 90 C37 74 48 64 48 64 C48 64 47 75 53 79 C52 64 60 48 60 48 Z"
+                    fill="url(#flameInnerGrad)"/>
+            </svg>
+            <div class="streak-flame-number">{{ user.current_streak }}</div>
+          </div>
+
+          <h3 class="streak-hero-title fw-bold mt-2 mb-3">Day Streak</h3>
+
+          <!-- 7-Day Circle Row -->
+          <div class="streak-week-row mx-auto mb-3" role="list" aria-label="7-day streak progress">
+            {% for day in streak_days %}
+            <div class="streak-week-col {{ 'is-completed' if day.completed }} {{ 'is-today' if day.is_today }}"
+                 role="listitem"
+                 style="--day-idx: {{ loop.index0 }};">
+              <span class="streak-week-letter">{{ day.label }}</span>
+              <div class="streak-week-circle">
+                {% if day.completed %}
+                <svg class="streak-mini-flame" viewBox="0 0 32 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M16.5 2 C16.5 2 27 11 29 20 C30.5 27.5 26 35.5 16 37 C6.5 35.5 2 27.5 4 20 C5.5 14 9.5 10 9.5 10 C9.5 10 9 14.5 11.5 16.5 C11 10 16.5 2 16.5 2 Z"
+                        fill="#ff6a00"/>
+                  <path d="M11.2 23.2 L14.6 26.6 L21.4 19.4"
+                        fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {% else %}
+                <span class="streak-empty-ring"></span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <p class="streak-hero-subtitle small mb-0">
+            {% if user.current_streak <= 0 %}
+              Verify your university account to ignite your Day 1 streak!
+            {% elif user.current_streak == 1 %}
+              A new streak begins! Visit daily to build your placement readiness.
+            {% else %}
+              You're on a {{ user.current_streak }}-day streak! Keep visiting every 24 hours to stay placement-ready.
+            {% endif %}
+          </p>
+        </div>
+
         <div class="row g-3 mb-4 text-center">
           <div class="col-4">
             <div class="stat-box h-100">

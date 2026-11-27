@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS user_logins (
     current_streak        INTEGER NOT NULL DEFAULT 0,
     best_streak           INTEGER NOT NULL DEFAULT 0,
     last_login_date       TEXT,
+    last_streak_at        TEXT,
     total_login_days      INTEGER NOT NULL DEFAULT 0,
     created_at            TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL
@@ -200,6 +201,7 @@ def init_db(db_path=None):
                 ("current_streak", "INTEGER NOT NULL DEFAULT 0"),
                 ("best_streak", "INTEGER NOT NULL DEFAULT 0"),
                 ("last_login_date", "TEXT"),
+                ("last_streak_at", "TEXT"),
                 ("total_login_days", "INTEGER NOT NULL DEFAULT 0"),
             ),
         )

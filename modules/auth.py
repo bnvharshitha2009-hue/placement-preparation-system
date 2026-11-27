@@ -396,24 +396,198 @@ def evaluate_streak_transition(user_row, today_date=None):
     return fields, event
 
 
-def _apply_streak_in_conn(conn, row, today_date=None):
+def _apply_streak_in_conn(conn, row, today_date=None, now_dt=None):
     """Apply daily streak transition inside an open SQLite transaction."""
-    fields, event = evaluate_streak_transition(row, today_date=today_date)
+    now = now_dt or datetime.now()
+    fields, event = evaluate_streak_transition(row, today_date=today_date or now.date())
     conn.execute(
         """
         UPDATE user_logins
-        SET current_streak = ?, best_streak = ?, last_login_date = ?, total_login_days = ?
+        SET current_streak = ?, best_streak = ?, last_login_date = ?,
+            last_streak_at = ?, total_login_days = ?
         WHERE id = ?
         """,
         (
             fields["current_streak"],
             fields["best_streak"],
             fields["last_login_date"],
+            now.isoformat(timespec="seconds"),
             fields["total_login_days"],
             row["id"],
         ),
     )
     return event
+
+
+def evaluate_24h_visit_streak(user_row, now_dt=None):
+    """
+    Evaluate whether a signed-in user's website visit qualifies for a 24-hour streak update.
+    Returns (new_fields_dict_or_None, streak_event_or_None).
+    - Within 24h of last_streak_at: returns (None, None) (no update).
+    - 24h to <48h since last_streak_at: increments streak ('streak_kept' or 'started').
+    - >=48h since last_streak_at: resets streak to 1 ('streak_broken').
+    - If last_streak_at is missing, falls back to last_login_date (no update if already today).
+    """
+    now = now_dt or datetime.now()
+    row_dict = dict(user_row)
+    prev_streak = int(row_dict.get("current_streak") or 0)
+    best_streak = int(row_dict.get("best_streak") or 0)
+    total_days = int(row_dict.get("total_login_days") or 0)
+    last_streak_raw = (row_dict.get("last_streak_at") or "").strip()
+
+    if not last_streak_raw:
+        last_date = (row_dict.get("last_login_date") or "").strip()
+        if last_date == now.date().isoformat() and prev_streak > 0:
+            return None, None
+        fields, event = evaluate_streak_transition(row_dict, today_date=now.date())
+        if event["kind"] == "same_day":
+            return None, None
+        fields["last_streak_at"] = now.isoformat(timespec="seconds")
+        return fields, event
+
+    try:
+        last_dt = datetime.fromisoformat(last_streak_raw)
+    except ValueError:
+        last_dt = None
+
+    if last_dt is None:
+        fields, event = evaluate_streak_transition(row_dict, today_date=now.date())
+        fields["last_streak_at"] = now.isoformat(timespec="seconds")
+        return fields, event
+
+    elapsed_seconds = (now - last_dt).total_seconds()
+    if elapsed_seconds < 24 * 3600:
+        return None, None
+
+    if prev_streak <= 0:
+        new_streak = 1
+        new_best = max(best_streak, 1)
+        new_total = total_days + 1
+        event = {
+            "kind": "started",
+            "emoji": "🔥",
+            "bar_emoji": "🔥",
+            "particles": ["🔥", "✨", "🚀", "💜"],
+            "streak": new_streak,
+            "prev_streak": prev_streak,
+            "best_streak": new_best,
+            "title": "Day 1 Streak Started!",
+            "subtitle": "A new streak begins! Visit daily to build your placement readiness.",
+        }
+    elif elapsed_seconds < 48 * 3600:
+        new_streak = prev_streak + 1
+        new_best = max(best_streak, new_streak)
+        new_total = total_days + 1
+        event = {
+            "kind": "streak_kept",
+            "emoji": "🔥",
+            "bar_emoji": "🔥",
+            "particles": ["🔥", "⚡", "🌟", "✨", "🏆"],
+            "streak": new_streak,
+            "prev_streak": prev_streak,
+            "best_streak": new_best,
+            "title": f"{new_streak}-Day Streak Kept!",
+            "subtitle": "24-hour milestone reached! Your placement streak just leveled up.",
+        }
+    else:
+        new_streak = 1
+        new_best = max(best_streak, prev_streak, 1)
+        new_total = total_days + 1
+        event = {
+            "kind": "streak_broken",
+            "emoji": "💔",
+            "bar_emoji": "🌱",
+            "particles": ["💔", "😢", "🌱", "💪"],
+            "streak": new_streak,
+            "prev_streak": prev_streak,
+            "best_streak": new_best,
+            "title": f"Streak Reset ({prev_streak}d → 1d)",
+            "subtitle": f"More than 48 hours passed since your last visit. Starting fresh at Day 1 today!",
+        }
+
+    fields = {
+        "current_streak": new_streak,
+        "best_streak": new_best,
+        "last_login_date": now.date().isoformat(),
+        "last_streak_at": now.isoformat(timespec="seconds"),
+        "total_login_days": new_total,
+    }
+    return fields, event
+
+
+def record_visit_streak_if_due(user_id, db_path=None, now_dt=None):
+    """
+    Check if a signed-in verified user is due for a 24-hour visit streak update.
+    Returns (updated_user_dict, streak_event_or_None).
+    """
+    with db_session(db_path) as conn:
+        row = conn.execute("SELECT * FROM user_logins WHERE id = ?", (user_id,)).fetchone()
+        if row is None or row["status"] != "verified":
+            return (dict(row) if row else None), None
+        fields, event = evaluate_24h_visit_streak(row, now_dt=now_dt)
+        if fields is None:
+            return dict(row), None
+        conn.execute(
+            """
+            UPDATE user_logins
+            SET current_streak = ?, best_streak = ?, last_login_date = ?,
+                last_streak_at = ?, total_login_days = ?
+            WHERE id = ?
+            """,
+            (
+                fields["current_streak"],
+                fields["best_streak"],
+                fields["last_login_date"],
+                fields["last_streak_at"],
+                fields["total_login_days"],
+                row["id"],
+            ),
+        )
+        updated = conn.execute("SELECT * FROM user_logins WHERE id = ?", (user_id,)).fetchone()
+    return dict(updated), event
+
+
+def sync_active_user_visit_streak(db_path=None, now_dt=None):
+    """Advance the 24-hour visit streak if a verified user is signed in via session."""
+    if not has_request_context():
+        return None
+    user_id = session.get("user_login_id")
+    if not user_id:
+        return None
+    try:
+        _, event = record_visit_streak_if_due(user_id, db_path=db_path, now_dt=now_dt)
+    except sqlite3.Error:
+        return None
+    if event:
+        session["pending_streak_effect"] = event
+    return event
+
+
+def build_streak_week_days(user, today_date=None):
+    """
+    Build a 7-day streak row (matching the animated profile streak card) for a logged-in user.
+    Starts from the day the current 7-day cycle began so Day 1 is the first circle.
+    """
+    today_d = today_date or date.today()
+    streak = int((user or {}).get("current_streak") or 0)
+    if streak <= 0:
+        cycle_start = today_d
+        completed_count = 0
+    else:
+        completed_in_cycle = ((streak - 1) % 7) + 1
+        cycle_start = today_d - timedelta(days=completed_in_cycle - 1)
+        completed_count = completed_in_cycle
+
+    day_letters = ["M", "T", "W", "T", "F", "S", "S"]
+    days = []
+    for idx in range(7):
+        d = cycle_start + timedelta(days=idx)
+        days.append({
+            "label": day_letters[d.weekday()],
+            "completed": idx < completed_count,
+            "is_today": d == today_d and completed_count > 0,
+        })
+    return days
 
 
 def record_login_streak(user_id, db_path=None, today_date=None):
@@ -892,7 +1066,7 @@ def handle_resend_request(db_path):
 
 
 def handle_profile_request(db_path):
-    """GET /profile -> display user profile, university verification status, and streak bar."""
+    """GET /profile -> display user profile, university verification status, and animated streak."""
     user = get_logged_in_user(db_path)
     assessment_summary = None
     if user and user.get("student_id"):
@@ -905,11 +1079,13 @@ def handle_profile_request(db_path):
 
     streak = user["current_streak"] if user else 0
     milestones = [{"day": d, "reached": streak >= d} for d in range(1, 8)]
+    streak_days = build_streak_week_days(user) if user else []
     return render_template(
         "profile.html",
         user=user,
         assessment=assessment_summary,
         milestones=milestones,
+        streak_days=streak_days,
     ), 200
 
 

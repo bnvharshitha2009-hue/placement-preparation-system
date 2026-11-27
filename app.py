@@ -20,7 +20,7 @@ Run the app:
 
 import os
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 from database import DEFAULT_DB_PATH, init_db
 from modules import assessment as assessment_module  # Member 1's feature
@@ -127,6 +127,14 @@ def create_app(config=None):
 
 def register_routes(app):
     """All page routes live here to keep create_app() short and readable."""
+
+    @app.before_request
+    def check_24h_visit_streak():
+        if request.method != "GET":
+            return
+        if request.endpoint in ("static", "login_page", "verify_page", "resend_verification", "logout_page", None):
+            return
+        auth_module.sync_active_user_visit_streak(app.config["DATABASE"])
 
     @app.context_processor
     def inject_modules():

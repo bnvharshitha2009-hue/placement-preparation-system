@@ -4,3 +4,4 @@ pandas
 plotly
 pytest
 google-genai>=3.5.0
+python-dotenv

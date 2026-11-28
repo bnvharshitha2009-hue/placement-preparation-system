@@ -421,97 +421,15 @@ def _apply_streak_in_conn(conn, row, today_date=None, now_dt=None):
 
 def evaluate_24h_visit_streak(user_row, now_dt=None):
     """
-    Evaluate whether a signed-in user's website visit qualifies for a 24-hour streak update.
+    Evaluate whether a signed-in user's website visit qualifies for a daily streak update
+    based on calendar days (same day -> no update; next calendar day -> increment; missed day -> reset).
     Returns (new_fields_dict_or_None, streak_event_or_None).
-    - Within 24h of last_streak_at: returns (None, None) (no update).
-    - 24h to <48h since last_streak_at: increments streak ('streak_kept' or 'started').
-    - >=48h since last_streak_at: resets streak to 1 ('streak_broken').
-    - If last_streak_at is missing, falls back to last_login_date (no update if already today).
     """
     now = now_dt or datetime.now()
-    row_dict = dict(user_row)
-    prev_streak = int(row_dict.get("current_streak") or 0)
-    best_streak = int(row_dict.get("best_streak") or 0)
-    total_days = int(row_dict.get("total_login_days") or 0)
-    last_streak_raw = (row_dict.get("last_streak_at") or "").strip()
-
-    if not last_streak_raw:
-        last_date = (row_dict.get("last_login_date") or "").strip()
-        if last_date == now.date().isoformat() and prev_streak > 0:
-            return None, None
-        fields, event = evaluate_streak_transition(row_dict, today_date=now.date())
-        if event["kind"] == "same_day":
-            return None, None
-        fields["last_streak_at"] = now.isoformat(timespec="seconds")
-        return fields, event
-
-    try:
-        last_dt = datetime.fromisoformat(last_streak_raw)
-    except ValueError:
-        last_dt = None
-
-    if last_dt is None:
-        fields, event = evaluate_streak_transition(row_dict, today_date=now.date())
-        fields["last_streak_at"] = now.isoformat(timespec="seconds")
-        return fields, event
-
-    elapsed_seconds = (now - last_dt).total_seconds()
-    if elapsed_seconds < 24 * 3600:
+    fields, event = evaluate_streak_transition(user_row, today_date=now.date())
+    if event["kind"] == "same_day":
         return None, None
-
-    if prev_streak <= 0:
-        new_streak = 1
-        new_best = max(best_streak, 1)
-        new_total = total_days + 1
-        event = {
-            "kind": "started",
-            "emoji": "🔥",
-            "bar_emoji": "🔥",
-            "particles": ["🔥", "✨", "🚀", "💜"],
-            "streak": new_streak,
-            "prev_streak": prev_streak,
-            "best_streak": new_best,
-            "title": "Day 1 Streak Started!",
-            "subtitle": "A new streak begins! Visit daily to build your placement readiness.",
-        }
-    elif elapsed_seconds < 48 * 3600:
-        new_streak = prev_streak + 1
-        new_best = max(best_streak, new_streak)
-        new_total = total_days + 1
-        event = {
-            "kind": "streak_kept",
-            "emoji": "🔥",
-            "bar_emoji": "🔥",
-            "particles": ["🔥", "⚡", "🌟", "✨", "🏆"],
-            "streak": new_streak,
-            "prev_streak": prev_streak,
-            "best_streak": new_best,
-            "title": f"{new_streak}-Day Streak Kept!",
-            "subtitle": "24-hour milestone reached! Your placement streak just leveled up.",
-        }
-    else:
-        new_streak = 1
-        new_best = max(best_streak, prev_streak, 1)
-        new_total = total_days + 1
-        event = {
-            "kind": "streak_broken",
-            "emoji": "💔",
-            "bar_emoji": "🌱",
-            "particles": ["💔", "😢", "🌱", "💪"],
-            "streak": new_streak,
-            "prev_streak": prev_streak,
-            "best_streak": new_best,
-            "title": f"Streak Reset ({prev_streak}d → 1d)",
-            "subtitle": f"More than 48 hours passed since your last visit. Starting fresh at Day 1 today!",
-        }
-
-    fields = {
-        "current_streak": new_streak,
-        "best_streak": new_best,
-        "last_login_date": now.date().isoformat(),
-        "last_streak_at": now.isoformat(timespec="seconds"),
-        "total_login_days": new_total,
-    }
+    fields["last_streak_at"] = now.isoformat(timespec="seconds")
     return fields, event
 
 

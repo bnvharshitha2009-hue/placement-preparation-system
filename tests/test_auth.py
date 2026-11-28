@@ -610,22 +610,22 @@ class TestProfileAndStreakSystem:
             "last_streak_at": t0.isoformat(timespec="seconds"),
         }
 
-        # Within 24 hours -> no streak update
-        fields_early, ev_early = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=23))
+        # Same calendar day -> no streak update
+        fields_early, ev_early = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=3))
         assert fields_early is None
         assert ev_early is None
 
-        # Exactly 24 hours later -> streak increments to 2
-        fields_24h, ev_24h = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=24))
-        assert fields_24h["current_streak"] == 2
-        assert fields_24h["best_streak"] == 2
-        assert fields_24h["total_login_days"] == 2
-        assert ev_24h["kind"] == "streak_kept"
+        # Next calendar day (even if <24h) -> streak increments to 2
+        fields_next_day, ev_next_day = auth_module.evaluate_24h_visit_streak(row, now_dt=t0 + timedelta(hours=16))
+        assert fields_next_day["current_streak"] == 2
+        assert fields_next_day["best_streak"] == 2
+        assert fields_next_day["total_login_days"] == 2
+        assert ev_next_day["kind"] == "streak_kept"
 
-        # 48+ hours later -> streak resets to 1, best_streak preserved
+        # 2+ calendar days later -> streak resets to 1, best_streak preserved
         fields_48h, ev_48h = auth_module.evaluate_24h_visit_streak(
             {**row, "current_streak": 4, "best_streak": 4},
-            now_dt=t0 + timedelta(hours=49),
+            now_dt=t0 + timedelta(days=2),
         )
         assert fields_48h["current_streak"] == 1
         assert fields_48h["best_streak"] == 4

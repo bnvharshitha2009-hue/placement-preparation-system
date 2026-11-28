@@ -212,7 +212,7 @@
     </header>
 
     <!-- Flash messages (success / error notices) -->
-    <div class="container mt-3 position-relative" style="z-index: 2;">
+    <div class="container mt-3">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
           <div class="alert alert-{{ category if category in ['success', 'danger', 'warning', 'info'] else 'info' }} alert-dismissible fade show" role="alert">
@@ -224,11 +224,11 @@
     </div>
 
     <!-- Each page puts its own content in this block -->
-    <main class="{% block main_class %}container my-4 flex-grow-1 position-relative{% endblock %}" style="z-index: 2;">
+    <main class="{% block main_class %}container my-4 flex-grow-1{% endblock %}">
       {% block content %}{% endblock %}
     </main>
 
-    <footer class="text-center small py-3 border-top portfolio-footer position-relative" style="z-index: 2;">
+    <footer class="text-center small py-3 border-top portfolio-footer">
       HOGWARTS PLACEMENT HUB &middot; Enchanted Wizarding Placement Sanctuary
     </footer>
   </div>

@@ -174,54 +174,6 @@
   </div>
 
   <div class="card-body p-4">
-    <!-- Gemini AI Adaptive Question Generator -->
-    <div class="stat-box mb-4">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <span class="fw-bold">✨ Generate Verified Questions with Gemini API ({{ gemini_status.model }})</span>
-        {% if gemini_status.ready %}
-        <span class="badge text-bg-success">Gemini API Ready</span>
-        {% elif not gemini_status.sdk_installed %}
-        <span class="badge text-bg-warning">Install google-genai</span>
-        {% else %}
-        <span class="badge text-bg-warning">Add GEMINI_API_KEY in .env</span>
-        {% endif %}
-      </div>
-      <form method="post" action="{{ url_for('practice_page') }}" class="row g-2 align-items-end">
-        <input type="hidden" name="action" value="generate_ai">
-        <input type="hidden" name="student_id" value="{{ selected_student_id }}">
-        {% if linked_task %}<input type="hidden" name="task_id" value="{{ linked_task.id }}">{% endif %}
-        <div class="col-md-3">
-          <label class="form-label small text-muted" for="ai-category">Category (Weakest Auto-Selected)</label>
-          <select id="ai-category" name="category_key" class="form-select form-select-sm">
-            {% for ckey, clabel in category_options if ckey != 'mock' %}
-            <option value="{{ ckey }}" {% if weakest_key == ckey %}selected{% endif %}>{{ clabel }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small text-muted" for="ai-topic">Specific Weak Topic (optional)</label>
-          <input type="text" id="ai-topic" name="topic_focus" maxlength="100"
-                 placeholder="e.g. Time &amp; Work, Dynamic Programming, SQL Joins"
-                 class="form-control form-control-sm">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small text-muted" for="ai-diff">Difficulty</label>
-          <select id="ai-diff" name="difficulty" class="form-select form-select-sm">
-            <option value="standard">Placement Standard</option>
-            <option value="hard">Hard (Product)</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <button type="submit" class="btn btn-sm btn-primary w-100">✨ Generate 5 AI Questions</button>
-        </div>
-      </form>
-      {% if not gemini_status.ready %}
-      <div class="small text-muted mt-2">
-        Setup to enable live Gemini generation: run <code>pip install -U google-genai</code> and set <code>GEMINI_API_KEY</code> in <code>.env</code>. CareerRide sets remain ready below anytime.
-      </div>
-      {% endif %}
-    </div>
-
     <!-- Mode & Set Switcher -->
     <form method="get" action="{{ url_for('practice_page') }}#practice-runner" class="row g-2 align-items-end mb-4 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
       <input type="hidden" name="student" value="{{ selected_student_id }}">

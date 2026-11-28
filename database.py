@@ -140,12 +140,26 @@ CREATE TABLE IF NOT EXISTS ai_question_sets (
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS company_ai_tests (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id     INTEGER,
+    company_slug   TEXT NOT NULL,
+    company_name   TEXT NOT NULL,
+    model_name     TEXT NOT NULL DEFAULT 'gemini-4-hydrogen',
+    questions_json TEXT NOT NULL,
+    score          INTEGER,
+    max_score      INTEGER,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_skill_assessments_student ON skill_assessments(student_id);
 CREATE INDEX IF NOT EXISTS idx_preparation_tasks_student ON preparation_tasks(student_id);
 CREATE INDEX IF NOT EXISTS idx_preparation_tasks_status  ON preparation_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_practice_results_student  ON practice_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_user_logins_gmail         ON user_logins(gmail);
 CREATE INDEX IF NOT EXISTS idx_ai_question_sets_student  ON ai_question_sets(student_id);
+CREATE INDEX IF NOT EXISTS idx_company_ai_tests_slug     ON company_ai_tests(company_slug);
 """
 
 # Names of the tables created above (handy for checks and documentation).
@@ -156,6 +170,7 @@ TABLE_NAMES = (
     "practice_results",
     "user_logins",
     "ai_question_sets",
+    "company_ai_tests",
 )
 
 

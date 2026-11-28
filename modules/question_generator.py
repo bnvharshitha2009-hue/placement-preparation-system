@@ -19,6 +19,11 @@ from modules import assessment as assessment_module
 DEFAULT_GEMINI_MODEL = "gemini-4-hydrogen"
 VALID_DIFFICULTIES = ("standard", "hard")
 
+DEFAULT_GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-4-hydrogen"   # fallback for existing tests
+)
+
 QUESTIONS_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -26,6 +31,45 @@ QUESTIONS_JSON_SCHEMA = {
             "type": "array",
             "minItems": 5,
             "maxItems": 5,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string"},
+                    "prompt": {"type": "string"},
+                    "option_a": {"type": "string"},
+                    "option_b": {"type": "string"},
+                    "option_c": {"type": "string"},
+                    "option_d": {"type": "string"},
+                    "verification_steps": {"type": "string"},
+                    "answer": {"type": "string", "enum": ["a", "b", "c", "d"]},
+                    "explanation": {"type": "string"},
+                },
+                "required": [
+                    "topic",
+                    "prompt",
+                    "option_a",
+                    "option_b",
+                    "option_c",
+                    "option_d",
+                    "verification_steps",
+                    "answer",
+                    "explanation",
+                ],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}
+
+COMPANY_TEST_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "minItems": 15,
+            "maxItems": 15,
             "items": {
                 "type": "object",
                 "properties": {
@@ -256,3 +300,109 @@ def get_ai_question_set(ai_set_id, student_id=None, db_path=None):
         record["category_key"], {}
     ).get("label", record["category_key"].title())
     return record
+
+
+def generate_company_ai_test(company, student_id=None, db_path=None, client=None, model=DEFAULT_GEMINI_MODEL):
+    """
+    Generate exactly 15 verified multiple-choice questions specifically modelled
+    after the target company's recruitment pattern and sample questions using Gemini.
+    Saves to `company_ai_tests` and returns the test object.
+    """
+    api_key = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
+    if client is None:
+        if not api_key or api_key.lower() in {"your-gemini-api-key", "your_api_key"}:
+            raise RuntimeError("GEMINI_API_KEY is not configured in .env or environment variables.")
+        try:
+            from google import genai
+        except ImportError as exc:
+            raise RuntimeError("The google-genai package is not installed. Run: pip install -U google-genai") from exc
+        client = genai.Client(api_key=api_key)
+
+    company_name = company.get("name", "Placement")
+    role = company.get("role", "Software Development Engineer")
+    topics_list = ", ".join(company.get("topics_covered", [])[:5])
+    exam_style = company.get("exam_style", "Campus placement assessment")
+
+    samples_brief = []
+    for idx, sq in enumerate(company.get("sample_questions", [])[:3], start=1):
+        samples_brief.append(f"Sample {idx}: {sq.get('title', '')} - {sq.get('problem', '')[:180]}")
+    samples_text = "\n".join(samples_brief)
+
+    prompt = (
+        f"You are the senior campus hiring assessment creator for {company_name}.\n"
+        f"Create an official 15-question multiple choice recruitment test for the {role} position.\n\n"
+        f"Company Exam Style: {exam_style}\n"
+        f"Key Topics to Cover: {topics_list}\n"
+        f"Reference Sample Questions from this company's hiring exam:\n{samples_text}\n\n"
+        f"Requirements:\n"
+        f"1. Generate EXACTLY 15 original, rigorous multiple-choice questions matching {company_name}'s specific difficulty, topics, and problem styles.\n"
+        f"2. For product companies (like Atlassian, Amazon, Microsoft, Juspay), emphasize algorithmic edge cases, data structures, sliding window/graphs, and core CS.\n"
+        f"3. For service companies (like Accenture, TCS, Infosys, Capgemini, Wipro), match their actual test sections (numerical logic, pseudocode tracing, SQL, cloud/tech basics, and reasoning).\n"
+        f"4. Provide 4 distinct options (a, b, c, d) with exactly one clearly correct answer.\n"
+        f"5. Solve each question step-by-step in `verification_steps` before setting `answer`.\n"
+        f"6. Provide a concise explanation in `explanation`."
+    )
+
+    interaction = client.interactions.create(
+        model=model,
+        system_instruction=(
+            f"You are an expert exam author creating the verified 15-question placement test for {company_name}. "
+            "Ensure highest factual and mathematical accuracy with unambiguous questions."
+        ),
+        input=prompt,
+        store=False,
+        response_format={
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": COMPANY_TEST_JSON_SCHEMA,
+        },
+    )
+    raw_text = interaction.output_text
+    if not raw_text:
+        raise ValueError(f"Gemini returned an empty test for {company_name}.")
+
+    parsed = json.loads(raw_text)
+    raw_questions = parsed.get("questions") or []
+    if len(raw_questions) < 15:
+        raise ValueError(f"Expected 15 questions from Gemini, got {len(raw_questions)}.")
+
+    validated = _validate_and_normalize_questions(raw_questions[:15], company.get("slug", "company"))
+
+    with db_session(db_path) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO company_ai_tests
+                (student_id, company_slug, company_name, model_name, questions_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                student_id,
+                company.get("slug"),
+                company_name,
+                model,
+                json.dumps(validated),
+            ),
+        )
+        test_id = cur.lastrowid
+
+    return {
+        "test_id": test_id,
+        "student_id": student_id,
+        "company_slug": company.get("slug"),
+        "company_name": company_name,
+        "model_name": model,
+        "questions": validated,
+    }
+
+
+def get_company_ai_test(test_id, db_path=None):
+    """Fetch a previously generated 15-question company AI test."""
+    if not test_id:
+        return None
+    row = fetch_one("SELECT * FROM company_ai_tests WHERE id = ?", (test_id,), db_path)
+    if row is None:
+        return None
+    record = dict(row)
+    record["questions"] = json.loads(record["questions_json"])
+    return record
+

@@ -9,8 +9,7 @@
 <div class="alert alert-danger" role="alert">{{ general_error }}</div>
 {% endif %}
 
-
-{# ======================= VIEW 1: DETAILS + POP-UP PAGER QUIZ ======================= #}
+{# ======================= VIEW 1: DETAILS + ASSESSMENT HUB ======================= #}
 {% if view == 'form' %}
 
 <div class="mb-4 d-flex flex-wrap justify-content-between align-items-start gap-3">
@@ -36,207 +35,741 @@
 </div>
 {% endif %}
 
-{# Scoring guide #}
-<div class="card mb-4">
-  <div class="card-header fw-semibold">How Your Score Determines Your Skill Level</div>
-  <div class="table-responsive">
-    <table class="table table-sm mb-0 align-middle">
-      <tbody>
-        {% for s in rating_scale %}
-        <tr>
-          <td class="text-center fw-bold" style="width: 3rem;">{{ s.value }}</td>
-          <td class="fw-semibold" style="width: 9rem;">{{ s.label }}</td>
-          <td class="text-muted">{{ s.meaning }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{# Primary Mode Switch: General vs Company Specific #}
+<div class="card mb-4 border-0" style="background: rgba(29, 17, 22, 0.65);">
+  <div class="card-body p-2">
+    <ul class="nav nav-pills nav-fill gap-2" id="assessmentModeTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link fs-6 fw-bold py-3 {% if active_tab != 'company' %}active{% endif %}"
+                id="tab-btn-general"
+                data-bs-toggle="pill"
+                data-bs-target="#pane-general"
+                type="button"
+                role="tab"
+                aria-controls="pane-general"
+                aria-selected="{{ 'true' if active_tab != 'company' else 'false' }}">
+          🌐 General Assessment &amp; 10 Topic Quizzes
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link fs-6 fw-bold py-3 {% if active_tab == 'company' %}active{% endif %}"
+                id="tab-btn-company"
+                data-bs-toggle="pill"
+                data-bs-target="#pane-company"
+                type="button"
+                role="tab"
+                aria-controls="pane-company"
+                aria-selected="{{ 'true' if active_tab == 'company' else 'false' }}">
+          🏢 Company Specific Placement Papers &amp; AI Test
+        </button>
+      </li>
+    </ul>
   </div>
 </div>
 
-<form id="assessment-form" method="post" action="{{ url_for('assessment_page') }}" novalidate>
-  <input type="hidden" name="question_set" value="{{ question_set }}">
+<div class="tab-content" id="assessmentTabContent">
 
-  {# Step 1: Student details card #}
-  <div class="card hero-card mb-4">
-    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-      <span>Step 1 &middot; Your details</span>
-      <span class="badge text-bg-secondary">Required before quiz</span>
-    </div>
-    <div class="card-body p-4">
-      {% if current_user %}
-      <div class="stat-box py-2 px-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small">
-        <span>
-          Signed in: <strong>{{ current_user.gmail }}</strong> &middot; {{ current_user.university_name }}
-        </span>
-        {% if current_user.status == 'verified' %}
-        <span class="badge text-bg-success">University Verified</span>
-        {% else %}
-        <a href="{{ url_for('login_page') }}" class="badge text-bg-warning text-decoration-none">Pending Verification &rarr;</a>
-        {% endif %}
-      </div>
-      {% endif %}
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label" for="name">Full name</label>
-          <input type="text" id="name" name="name" maxlength="100"
-                 placeholder="e.g. Asha Kumar"
-                 class="form-control {{ 'is-invalid' if errors.get('name') }}"
-                 value="{{ form.get('name', '') }}">
-          <div class="invalid-feedback" id="error-name">{{ errors.get('name', 'Please enter your name.') }}</div>
+  {# ===================================================================== #}
+  {# TAB 1: GENERAL ASSESSMENT & 10 TOPIC QUIZZES                          #}
+  {# ===================================================================== #}
+  <div class="tab-pane fade {% if active_tab != 'company' %}show active{% endif %}" id="pane-general" role="tabpanel" aria-labelledby="tab-btn-general">
+
+    {# Review Result of a General Topic Quiz (if just submitted) #}
+    {% if general_quiz_result %}
+    <div class="card hero-card mb-4 border-success">
+      <div class="card-header bg-success bg-opacity-25 py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <span class="badge text-bg-success me-2">Quiz Completed</span>
+          <strong class="fs-5">{{ general_quiz_result.quiz.title }}</strong>
         </div>
-        <div class="col-md-6">
-          <label class="form-label" for="email">Email</label>
-          <input type="email" id="email" name="email" maxlength="254"
-                 placeholder="e.g. asha@college.edu"
-                 class="form-control {{ 'is-invalid' if errors.get('email') }}"
-                 value="{{ form.get('email', '') }}">
-          <div class="invalid-feedback" id="error-email">{{ errors.get('email', 'Please enter a valid email address.') }}</div>
-        </div>
-        <div class="col-md-8">
-          <label class="form-label" for="branch">Branch / Department</label>
-          <input type="text" id="branch" name="branch" maxlength="100" placeholder="e.g. CSE"
-                 class="form-control {{ 'is-invalid' if errors.get('branch') }}"
-                 value="{{ form.get('branch', '') }}">
-          <div class="invalid-feedback" id="error-branch">{{ errors.get('branch', 'Please enter your branch or department.') }}</div>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label" for="year">Year of study</label>
-          <select id="year" name="year" class="form-select {{ 'is-invalid' if errors.get('year') }}">
-            <option value="">Select</option>
-            {% for y in ['1', '2', '3', '4'] %}
-            <option value="{{ y }}" {% if form.get('year') == y %}selected{% endif %}>Year {{ y }}</option>
-            {% endfor %}
-          </select>
-          <div class="invalid-feedback" id="error-year">{{ errors.get('year', 'Please select your year of study.') }}</div>
+        <div class="fs-5 fw-bold text-success">
+          Score: {{ general_quiz_result.score }} / {{ general_quiz_result.total }} ({{ general_quiz_result.percentage }}%)
         </div>
       </div>
-
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4 pt-3 border-top" style="border-color: var(--border-subtle) !important;">
-        <span class="small text-muted">
-          {{ categories | length }} pages &middot; {{ questions_per_category }} questions per category (Set {{ question_set }}) &middot; Graded automatically
-        </span>
-        <button type="button" id="start-assessment-btn" class="btn btn-primary btn-lg px-4">
-          Submit Details &amp; Open Quiz Pager &rarr;
-        </button>
-      </div>
-    </div>
-  </div>
-
-  {# Step 2: Pop-up Pager Modal containing all 4 category pages #}
-  <div class="modal fade portfolio-modal"
-       id="assessmentPagerModal"
-       tabindex="-1"
-       aria-labelledby="pagerModalLabel"
-       aria-hidden="true"
-       data-bs-backdrop="static">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header flex-column align-items-stretch gap-3 pb-3">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div>
-              <h2 class="modal-title h5 fw-bold mb-1" id="pagerModalLabel">
-                🧠 <span class="text-gradient">Skill Assessment Pager</span>
-              </h2>
-              <div class="small text-muted" id="pager-student-summary"></div>
-            </div>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-
-          {# Pager Category Tabs / Pills #}
-          <div class="d-flex flex-wrap gap-2" role="tablist" aria-label="Assessment pages">
-            {% for c in categories %}
-            <button type="button"
-                    class="pager-pill {% if loop.first %}active{% endif %}"
-                    data-pager-goto="{{ loop.index0 }}">
-              {{ loop.index }}. {{ c.label }}
-            </button>
-            {% endfor %}
-          </div>
-
-          <div>
-            <div class="d-flex justify-content-between small text-muted mb-1">
-              <span id="pager-top-step">Page 1 of {{ categories | length }}</span>
-              <span id="pager-answered-count">0 / {{ total_questions }} answered</span>
-            </div>
-            <div class="progress" style="height: 8px;">
-              <div class="progress-bar" id="pager-progress-bar" style="width: 25%"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-body p-4">
-          <div id="pager-validation-alert" class="alert alert-warning d-none mb-3" role="alert">
-            Please answer all questions on this page before moving forward.
-          </div>
-
-          {% for c in categories %}
-          {% set cat_questions = questions_by_category[c.key] %}
-          <div class="pager-page {% if not loop.first %}d-none{% endif %}" data-page="{{ loop.index0 }}" data-category-label="{{ c.label }}">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-              <div>
-                <h3 class="h5 fw-bold mb-0">{{ c.label }}</h3>
-                <small class="text-muted">{{ c.description }}</small>
-              </div>
-              <span class="badge text-bg-dark border border-secondary">{{ cat_questions | length }} Questions</span>
-            </div>
-
-            {% for q in cat_questions %}
-            {% set field = 'q_' ~ q.id %}
-            <div class="stat-box mb-3 question-card {% if errors.get(field) %}border-danger{% endif %}" data-question-field="{{ field }}">
-              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <span class="fw-bold text-gradient">Question {{ q.number }} of {{ cat_questions | length }}</span>
-                <span class="badge text-bg-secondary">{{ q.topic }}</span>
-              </div>
-              <p class="fw-medium mb-3">{{ q.prompt }}</p>
-
-              <div class="row g-2">
-                {% for opt_key, opt_text in q.options.items() %}
-                <div class="col-md-6">
-                  <input type="radio"
-                         class="btn-check question-radio"
-                         name="{{ field }}"
-                         id="{{ field }}_{{ opt_key }}"
-                         value="{{ opt_key }}"
-                         {% if form.get(field, '')|lower == opt_key %}checked{% endif %}>
-                  <label class="btn btn-outline-primary w-100 text-start py-2 px-3" for="{{ field }}_{{ opt_key }}">
-                    <strong class="me-1">{{ opt_key | upper }}.</strong> {{ opt_text }}
-                  </label>
-                </div>
-                {% endfor %}
-              </div>
-
-              {% if errors.get(field) %}
-              <div class="text-danger small mt-2 server-question-error">{{ errors.get(field) }}</div>
+      <div class="card-body p-4">
+        <h5 class="fw-bold mb-3">Review &amp; Solutions:</h5>
+        <div class="d-flex flex-column gap-3">
+          {% for q in general_quiz_result.review %}
+          <div class="stat-box p-3 border {% if q.is_correct %}border-success{% else %}border-danger{% endif %}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-gradient">Question {{ q.number }} &middot; {{ q.topic }}</span>
+              {% if q.is_correct %}
+              <span class="badge text-bg-success">✓ Correct (+1)</span>
+              {% else %}
+              <span class="badge text-bg-danger">✗ Incorrect</span>
               {% endif %}
             </div>
-            {% endfor %}
+            <p class="fw-medium mb-2">{{ q.prompt }}</p>
+            <div class="row g-2 mb-2">
+              {% for opt_k, opt_v in q.options.items() %}
+              <div class="col-md-6">
+                <div class="p-2 rounded small border
+                  {% if opt_k == q.answer %}border-success bg-success bg-opacity-10 text-white fw-bold
+                  {% elif opt_k == q.selected and not q.is_correct %}border-danger bg-danger bg-opacity-10 text-danger
+                  {% else %}border-secondary text-muted{% endif %}">
+                  <strong>{{ opt_k | upper }}.</strong> {{ opt_v }}
+                  {% if opt_k == q.answer %}<span class="badge text-bg-success ms-1">Correct Answer</span>{% endif %}
+                  {% if opt_k == q.selected and not q.is_correct %}<span class="badge text-bg-danger ms-1">Your Choice</span>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted bg-dark bg-opacity-50 p-2 rounded">
+              <strong class="text-secondary">Explanation:</strong> {{ q.explanation }}
+            </div>
           </div>
           {% endfor %}
         </div>
+        <div class="mt-4 text-end">
+          <a href="{{ url_for('assessment_page', tab='general') }}" class="btn btn-outline-primary">Take Another General Quiz &rarr;</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
-        <div class="modal-footer d-flex justify-content-between align-items-center">
-          <button type="button" id="pager-prev-btn" class="btn btn-outline-secondary" disabled>
-            &larr; Previous
-          </button>
-          <span id="pager-step-label" class="small text-muted">Page 1 of {{ categories | length }}</span>
-          <div class="d-flex gap-2">
-            <button type="button" id="pager-next-btn" class="btn btn-primary px-4">
-              Next &rarr;
-            </button>
-            <button type="submit" id="pager-submit-btn" class="btn btn-primary px-4 d-none">
-              Submit Assessment &amp; Analyze Skill Gaps
+    {# Section 1A: 10 Topic Quizzes Grid #}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 class="h4 fw-bold mb-1">📚 10 Topic-Specific Placement Quizzes</h2>
+        <p class="text-muted small mb-0">Select any topic (Aptitude, Coding, HR Interview, Git, GitHub, DBMS, OS, Networks, OOP, Logical Reasoning) to launch an instant quiz.</p>
+      </div>
+      <span class="badge text-bg-primary">10 Topics Available</span>
+    </div>
+
+    <div class="row g-3 mb-5">
+      {% for gq in general_quizzes %}
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 hero-card quiz-topic-card {% if selected_general_quiz and selected_general_quiz.slug == gq.slug %}border-primary{% endif %}">
+          <div class="card-body p-4 d-flex flex-column justify-content-between">
+            <div>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="fs-2">{{ gq.icon }}</span>
+                <span class="badge text-bg-secondary">{{ gq.difficulty }}</span>
+              </div>
+              <h3 class="h5 fw-bold mb-2">{{ gq.title }}</h3>
+              <p class="text-muted small mb-3">{{ gq.description }}</p>
+              <div class="d-flex flex-wrap gap-1 mb-3">
+                {% for t in gq.topics %}
+                <span class="badge bg-dark border border-secondary text-secondary small" style="font-size: 0.72rem;">{{ t }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="pt-3 border-top d-flex justify-content-between align-items-center" style="border-color: var(--border-subtle) !important;">
+              <span class="small text-muted">5 Questions &middot; ~{{ gq.estimated_minutes }} mins</span>
+              <button type="button"
+                      class="btn btn-sm btn-outline-primary fw-semibold"
+                      data-bs-toggle="modal"
+                      data-bs-target="#generalQuizModal_{{ gq.slug }}">
+                Start Quiz &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Modal Runner for this Topic Quiz #}
+      <div class="modal fade portfolio-modal" id="generalQuizModal_{{ gq.slug }}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <form method="post" action="{{ url_for('assessment_page') }}">
+              <input type="hidden" name="action" value="submit_general_quiz">
+              <input type="hidden" name="quiz_slug" value="{{ gq.slug }}">
+              <div class="modal-header d-flex justify-content-between align-items-center">
+                <div>
+                  <h3 class="modal-title h5 fw-bold mb-0">{{ gq.icon }} {{ gq.title }} Quiz</h3>
+                  <small class="text-muted">5 Verified Placement Questions &middot; Instant Score</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body p-4" style="max-height:70vh; overflow-y:auto;">
+                {% for q in gq.questions %}
+                <div class="stat-box mb-3 p-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-gradient">Question {{ q.number }} of 5</span>
+                    <span class="badge text-bg-secondary">{{ q.topic }}</span>
+                  </div>
+                  <p class="fw-medium mb-3">{{ q.prompt }}</p>
+                  <div class="row g-2">
+                    {% for opt_k, opt_v in q.options.items() %}
+                    <div class="col-md-6">
+                      <input type="radio"
+                             class="btn-check"
+                             name="gq_{{ q.id }}"
+                             id="gq_{{ q.id }}_{{ opt_k }}"
+                             value="{{ opt_k }}"
+                             required>
+                      <label class="btn btn-outline-primary w-100 text-start py-2 px-3" for="gq_{{ q.id }}_{{ opt_k }}">
+                        <strong class="me-1">{{ opt_k | upper }}.</strong> {{ opt_v }}
+                      </label>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              <div class="modal-footer d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary px-4">Submit &amp; View Solutions</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# Scoring guide #}
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">How Your Score Determines Your Skill Level</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <tbody>
+            {% for s in rating_scale %}
+            <tr>
+              <td class="text-center fw-bold" style="width: 3rem;">{{ s.value }}</td>
+              <td class="fw-semibold" style="width: 9rem;">{{ s.label }}</td>
+              <td class="text-muted">{{ s.meaning }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Section 1B: Full 4-Category Skill Assessment Form (CareerRide Dataset) #}
+    <form id="assessment-form" method="post" action="{{ url_for('assessment_page') }}" novalidate>
+      <input type="hidden" name="question_set" value="{{ question_set }}">
+
+      {# Step 1: Student details card #}
+      <div class="card hero-card mb-4">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Step 1 &middot; Your details</span>
+          <span class="badge text-bg-secondary">Required before quiz</span>
+        </div>
+        <div class="card-body p-4">
+          {% if current_user %}
+          <div class="stat-box py-2 px-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2 small">
+            <span>
+              Signed in: <strong>{{ current_user.gmail }}</strong> &middot; {{ current_user.university_name }}
+            </span>
+            {% if current_user.status == 'verified' %}
+            <span class="badge text-bg-success">University Verified</span>
+            {% else %}
+            <a href="{{ url_for('login_page') }}" class="badge text-bg-warning text-decoration-none">Pending Verification &rarr;</a>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="name">Full name</label>
+              <input type="text" id="name" name="name" maxlength="100"
+                     placeholder="e.g. Asha Kumar"
+                     class="form-control {{ 'is-invalid' if errors.get('name') }}"
+                     value="{{ form.get('name', '') }}">
+              <div class="invalid-feedback" id="error-name">{{ errors.get('name', 'Please enter your name.') }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="email">Email</label>
+              <input type="email" id="email" name="email" maxlength="254"
+                     placeholder="e.g. asha@college.edu"
+                     class="form-control {{ 'is-invalid' if errors.get('email') }}"
+                     value="{{ form.get('email', '') }}">
+              <div class="invalid-feedback" id="error-email">{{ errors.get('email', 'Please enter a valid email address.') }}</div>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="branch">Branch / Department</label>
+              <input type="text" id="branch" name="branch" maxlength="100" placeholder="e.g. CSE"
+                     class="form-control {{ 'is-invalid' if errors.get('branch') }}"
+                     value="{{ form.get('branch', '') }}">
+              <div class="invalid-feedback" id="error-branch">{{ errors.get('branch', 'Please enter your branch or department.') }}</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="year">Year of study</label>
+              <select id="year" name="year" class="form-select {{ 'is-invalid' if errors.get('year') }}">
+                <option value="">Select</option>
+                {% for y in ['1', '2', '3', '4'] %}
+                <option value="{{ y }}" {% if form.get('year') == y %}selected{% endif %}>Year {{ y }}</option>
+                {% endfor %}
+              </select>
+              <div class="invalid-feedback" id="error-year">{{ errors.get('year', 'Please select your year of study.') }}</div>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4 pt-3 border-top" style="border-color: var(--border-subtle) !important;">
+            <span class="small text-muted">
+              {{ categories | length }} pages &middot; {{ questions_per_category }} questions per category (Set {{ question_set }}) &middot; Graded automatically
+            </span>
+            <button type="button" id="start-assessment-btn" class="btn btn-primary btn-lg px-4">
+              Submit Details &amp; Open Quiz Pager &rarr;
             </button>
           </div>
         </div>
       </div>
-    </div>
+
+      {# Step 2: Pop-up Pager Modal containing all 4 category pages #}
+      <div class="modal fade portfolio-modal"
+           id="assessmentPagerModal"
+           tabindex="-1"
+           aria-labelledby="pagerModalLabel"
+           aria-hidden="true"
+           data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header flex-column align-items-stretch gap-3 pb-3">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <h2 class="modal-title h5 fw-bold mb-1" id="pagerModalLabel">
+                    🧠 <span class="text-gradient">Skill Assessment Pager</span>
+                  </h2>
+                  <div class="small text-muted" id="pager-student-summary"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+
+              {# Pager Category Tabs / Pills #}
+              <div class="d-flex flex-wrap gap-2" role="tablist" aria-label="Assessment pages">
+                {% for c in categories %}
+                <button type="button"
+                        class="pager-pill {% if loop.first %}active{% endif %}"
+                        data-pager-goto="{{ loop.index0 }}">
+                  {{ loop.index }}. {{ c.label }}
+                </button>
+                {% endfor %}
+              </div>
+
+              <div>
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                  <span id="pager-top-step">Page 1 of {{ categories | length }}</span>
+                  <span id="pager-answered-count">0 / {{ total_questions }} answered</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                  <div class="progress-bar" id="pager-progress-bar" style="width: 25%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-body p-4" style="max-height:70vh; overflow-y:auto;">
+              <div id="pager-validation-alert" class="alert alert-warning d-none mb-3" role="alert">
+                Please answer all questions on this page before moving forward.
+              </div>
+
+              {% for c in categories %}
+              {% set cat_questions = questions_by_category[c.key] %}
+              <div class="pager-page {% if not loop.first %}d-none{% endif %}" data-page="{{ loop.index0 }}" data-category-label="{{ c.label }}">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                  <div>
+                    <h3 class="h5 fw-bold mb-0">{{ c.label }}</h3>
+                    <small class="text-muted">{{ c.description }}</small>
+                  </div>
+                  <span class="badge text-bg-dark border border-secondary">{{ cat_questions | length }} Questions</span>
+                </div>
+
+                {% for q in cat_questions %}
+                {% set field = 'q_' ~ q.id %}
+                <div class="stat-box mb-3 question-card {% if errors.get(field) %}border-danger{% endif %}" data-question-field="{{ field }}">
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <span class="fw-bold text-gradient">Question {{ q.number }} of {{ cat_questions | length }}</span>
+                    <span class="badge text-bg-secondary">{{ q.topic }}</span>
+                  </div>
+                  <p class="fw-medium mb-3">{{ q.prompt }}</p>
+
+                  <div class="row g-2">
+                    {% for opt_key, opt_text in q.options.items() %}
+                    <div class="col-md-6">
+                      <input type="radio"
+                             class="btn-check question-radio"
+                             name="{{ field }}"
+                             id="{{ field }}_{{ opt_key }}"
+                             value="{{ opt_key }}"
+                             {% if form.get(field, '')|lower == opt_key %}checked{% endif %}>
+                      <label class="btn btn-outline-primary w-100 text-start py-2 px-3" for="{{ field }}_{{ opt_key }}">
+                        <strong class="me-1">{{ opt_key | upper }}.</strong> {{ opt_text }}
+                      </label>
+                    </div>
+                    {% endfor %}
+                  </div>
+
+                  {% if errors.get(field) %}
+                  <div class="text-danger small mt-2 server-question-error">{{ errors.get(field) }}</div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+              <button type="button" id="pager-prev-btn" class="btn btn-outline-secondary" disabled>
+                &larr; Previous
+              </button>
+              <span id="pager-step-label" class="small text-muted">Page 1 of {{ categories | length }}</span>
+              <div class="d-flex gap-2">
+                <button type="button" id="pager-next-btn" class="btn btn-primary px-4">
+                  Next &rarr;
+                </button>
+                <button type="submit" id="pager-submit-btn" class="btn btn-primary px-4 d-none">
+                  Submit Assessment &amp; Analyze Skill Gaps
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </form>
   </div>
 
-</form>
 
+  {# ===================================================================== #}
+  {# TAB 2: COMPANY SPECIFIC PLACEMENT PAPERS & AI EXAM                    #}
+  {# ===================================================================== #}
+  <div class="tab-pane fade {% if active_tab == 'company' %}show active{% endif %}" id="pane-company" role="tabpanel" aria-labelledby="tab-btn-company">
 
-{# ===================== VIEW 2: THE RESULT PAGE ===================== #}
+    {# Flash messages / test notifications #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {# If a company is selected, show its complete recruitment profile & sample questions #}
+    {% if selected_company %}
+    <div class="mb-4">
+      <a href="{{ url_for('assessment_page', tab='company') }}" class="btn btn-sm btn-outline-secondary mb-3">
+        &larr; Back to All Companies
+      </a>
+
+      {# Company Header Banner #}
+      <div class="card hero-card mb-4 border-0" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(29, 17, 22, 0.9) 100%); border-left: 4px solid #10b981 !important;">
+        <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge text-bg-success px-3 py-1">{{ selected_company.tier }}</span>
+              <span class="badge bg-dark border border-secondary text-secondary">Placement Papers &amp; Solutions</span>
+            </div>
+            <h2 class="h2 fw-bold text-white mb-1">{{ selected_company.name }} Coding Questions with Solutions</h2>
+            <p class="text-secondary mb-0">{{ selected_company.tagline }}</p>
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Offered Package</div>
+            <div class="fs-4 fw-bold text-gradient">{{ selected_company.ctc_breakdown.total }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        {# Left Column: Details, Recruitment Process, Eligibility, CTC, Topics #}
+        <div class="col-lg-8">
+
+          {# About Company #}
+          <div class="card hero-card mb-4">
+            <div class="card-header fw-semibold">About {{ selected_company.name }}</div>
+            <div class="card-body p-4">
+              <p class="text-secondary lh-lg mb-0" style="white-space: pre-line;">{{ selected_company.about }}</p>
+            </div>
+          </div>
+
+          {# Recruitment Process #}
+          <div class="card hero-card mb-4">
+            <div class="card-header fw-semibold">About {{ selected_company.name }} Recruitment Process</div>
+            <div class="card-body p-4">
+              <p class="text-muted small mb-3">{{ selected_company.name }} recruitment process consists of the following steps:</p>
+              <div class="d-flex flex-column gap-2 mb-3">
+                {% for step in selected_company.recruitment_process %}
+                <div class="p-2 px-3 rounded bg-dark bg-opacity-50 border border-secondary text-white fw-medium">
+                  {{ step }}
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          {# Tabular Summary: Role, Eligibility, CTC Breakdown, Selection Process #}
+          <div class="card hero-card mb-4">
+            <div class="card-header fw-semibold">Detailed Recruitment Information</div>
+            <div class="table-responsive">
+              <table class="table table-bordered mb-0 align-middle">
+                <tbody>
+                  <tr>
+                    <td class="fw-semibold text-secondary" style="width: 35%;">Position :</td>
+                    <td class="fw-bold text-white">{{ selected_company.role }}</td>
+                  </tr>
+                  <tr>
+                    <td class="fw-semibold text-secondary">Course :</td>
+                    <td>{{ selected_company.eligible_courses }}</td>
+                  </tr>
+                  <tr>
+                    <td class="fw-semibold text-secondary">Eligible Batch :</td>
+                    <td><span class="badge text-bg-primary">{{ selected_company.eligible_batch }}</span></td>
+                  </tr>
+                  <tr>
+                    <td class="fw-semibold text-secondary">Eligibility Criteria / Academic Qualification :</td>
+                    <td>
+                      <ul class="mb-0 ps-3">
+                        {% for elig in selected_company.eligibility %}
+                        <li>{{ elig }}</li>
+                        {% endfor %}
+                      </ul>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="fw-semibold text-secondary">CTC Breakdown :</td>
+                    <td>
+                      <div class="fw-bold text-gradient mb-1">Total CTC = {{ selected_company.ctc_breakdown.total }}</div>
+                      <ul class="mb-0 ps-3 small text-muted">
+                        {% for item in selected_company.ctc_breakdown['items'] %}
+                        <li><strong>{{ item.label }}</strong> : {{ item.value }}</li>
+                        {% endfor %}
+                      </ul>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="fw-semibold text-secondary">Selection Process :</td>
+                    <td>
+                      <ol class="mb-0 ps-3">
+                        {% for sp in selected_company.selection_process %}
+                        <li>{{ sp }}</li>
+                        {% endfor %}
+                      </ol>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {# Topics Covered #}
+          <div class="card hero-card mb-4" style="border-left: 4px solid #38bdf8 !important;">
+            <div class="card-header fw-semibold text-info">TOPICS COVERED IN {{ selected_company.name | upper }} RECRUITMENT EXAM:</div>
+            <div class="card-body p-4">
+              <ul class="mb-0 d-flex flex-column gap-2 text-secondary">
+                {% for topic in selected_company.topics_covered %}
+                <li><strong>{{ topic }}</strong></li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          {# Important Note #}
+          <div class="card hero-card mb-4" style="border-left: 4px solid #f59e0b !important;">
+            <div class="card-header fw-semibold text-warning">IMPORTANT NOTE:</div>
+            <div class="card-body p-4">
+              <ul class="mb-0 d-flex flex-column gap-2 text-secondary small">
+                {% for note in selected_company.important_note %}
+                <li>{{ note }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          {# Sample Questions and Solutions (with C++, Python, Java tabs) #}
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="h4 fw-bold mb-0">Sample {{ selected_company.name }} Coding Questions with Solutions</h3>
+            <span class="badge text-bg-success">{{ selected_company.sample_questions | length }} Sample Problems</span>
+          </div>
+
+          <div class="d-flex flex-column gap-4 mb-5">
+            {% for sq in selected_company.sample_questions %}
+            <div class="card hero-card">
+              <div class="card-header py-3 bg-dark bg-opacity-50 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-gradient fs-6">{{ sq.title }}</span>
+                <span class="badge text-bg-secondary">Verified Solution</span>
+              </div>
+              <div class="card-body p-4">
+                <p class="text-white fw-medium mb-3">{{ sq.problem }}</p>
+
+                {% if sq.examples %}
+                <div class="mb-3">
+                  <div class="small fw-semibold text-secondary mb-1">Examples:</div>
+                  {% for ex in sq.examples %}
+                  <div class="bg-black bg-opacity-50 p-2 rounded small text-muted font-monospace mb-1">{{ ex }}</div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if sq.explanation %}
+                <div class="small text-muted mb-3 bg-dark bg-opacity-25 p-3 rounded">
+                  <strong class="text-secondary">Approach &amp; Explanation:</strong> {{ sq.explanation }}
+                </div>
+                {% endif %}
+
+                {% if sq.solutions %}
+                <div class="card bg-black border-secondary">
+                  <div class="card-header py-2 d-flex justify-content-between align-items-center border-secondary">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                      {% if sq.solutions.cpp %}
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-3 small" data-bs-toggle="tab" data-bs-target="#sol_cpp_{{ loop.index }}" type="button">C++</button>
+                      </li>
+                      {% endif %}
+                      {% if sq.solutions.python %}
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 small {% if not sq.solutions.cpp %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sol_py_{{ loop.index }}" type="button">Python</button>
+                      </li>
+                      {% endif %}
+                      {% if sq.solutions.java %}
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 small {% if not sq.solutions.cpp and not sq.solutions.python %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#sol_java_{{ loop.index }}" type="button">Java</button>
+                      </li>
+                      {% endif %}
+                    </ul>
+                    <span class="badge text-bg-dark border border-secondary text-secondary">Verified</span>
+                  </div>
+                  <div class="card-body p-3 font-monospace small" style="background: #0d090b; overflow-x: auto;">
+                    <div class="tab-content">
+                      {% if sq.solutions.cpp %}
+                      <div class="tab-pane fade show active" id="sol_cpp_{{ loop.index }}" role="tabpanel">
+                        <pre class="mb-0 text-success"><code>{{ sq.solutions.cpp }}</code></pre>
+                      </div>
+                      {% endif %}
+                      {% if sq.solutions.python %}
+                      <div class="tab-pane fade {% if not sq.solutions.cpp %}show active{% endif %}" id="sol_py_{{ loop.index }}" role="tabpanel">
+                        <pre class="mb-0 text-info"><code>{{ sq.solutions.python }}</code></pre>
+                      </div>
+                      {% endif %}
+                      {% if sq.solutions.java %}
+                      <div class="tab-pane fade {% if not sq.solutions.cpp and not sq.solutions.python %}show active{% endif %}" id="sol_java_{{ loop.index }}" role="tabpanel">
+                        <pre class="mb-0 text-warning"><code>{{ sq.solutions.java }}</code></pre>
+                      </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+        </div>
+
+        {# Right Column: Quick Navigation and Company Highlights #}
+        <div class="col-lg-4">
+          <div class="card hero-card mb-4 position-sticky" style="top: 1rem;">
+            <div class="card-header fw-semibold">Quick Actions &amp; Package</div>
+            <div class="card-body p-3">
+              <div class="p-3 mb-3 rounded bg-dark bg-opacity-50 text-center border border-secondary">
+                <div class="small text-muted mb-1">Package Offered</div>
+                <div class="fs-4 fw-bold text-gradient">{{ selected_company.ctc_breakdown.total }}</div>
+                <span class="badge text-bg-success mt-1">{{ selected_company.role }}</span>
+              </div>
+
+              <div class="small text-muted mt-3 mb-2 fw-semibold text-uppercase" style="letter-spacing: 0.08em; font-size: 0.72rem;">
+                Browse Other Companies:
+              </div>
+              <div class="list-group list-group-flush small" style="max-height: 380px; overflow-y: auto;">
+                {% for comp in companies %}
+                <a href="{{ url_for('assessment_page', tab='company', company=comp.slug) }}"
+                   class="list-group-item list-group-item-action bg-transparent text-white d-flex justify-content-between align-items-center py-2 px-2 border-secondary {% if comp.slug == selected_company.slug %}active fw-bold{% endif %}">
+                  <span>{{ comp.name }}</span>
+                  <span class="badge text-bg-dark border border-secondary" style="font-size: 0.68rem;">{{ comp.ctc_breakdown.total }}</span>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    {# --------------------------------------------------------------------- #}
+    {# VIDEO-STYLE COMPANY LISTING (GRID WITH GREEN BADGES & CATEGORIES)    #}
+    {# --------------------------------------------------------------------- #}
+    <div class="text-center mb-5 pt-3">
+      <h2 class="display-6 fw-bold mb-2">Company Specific Placement Papers</h2>
+      <p class="text-muted mx-auto" style="max-width: 720px;">
+        Explore top product and service based companies. Click on any company to inspect recruitment processes, eligibility, CTC breakdowns, topics covered, and sample questions.
+      </p>
+
+      {# Search / Filter Input #}
+      <div class="mx-auto mt-3" style="max-width: 460px;">
+        <input type="text"
+               id="company-search-input"
+               class="form-control form-control-lg text-center"
+               placeholder="🔍 Search company (e.g. Atlassian, TCS, Accenture, Infosys)...">
+      </div>
+    </div>
+
+    {# Tiered Categories (Service Based, Product & Tech, etc.) #}
+    {% for tier_name in ['Product & Tech', 'Service Based'] %}
+    <div class="mb-5 company-tier-section" data-tier="{{ tier_name }}">
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <h3 class="h4 fw-bold mb-0 text-white">{{ tier_name }} Companies</h3>
+        <div class="flex-grow-1 border-bottom" style="border-color: var(--border-subtle) !important;"></div>
+        <span class="badge text-bg-primary">
+          {{ (companies | selectattr('tier', 'equalto', tier_name) | list) | length }} Companies
+        </span>
+      </div>
+
+      <div class="row g-3">
+        {% for comp in companies %}
+        {% if comp.tier == tier_name %}
+        <div class="col-sm-6 col-md-4 col-lg-3 company-card-col" data-company-name="{{ comp.name | lower }}">
+          <div class="card hero-card h-100 p-3 d-flex flex-column justify-content-between border-secondary hover-glow">
+            <div>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h4 class="h6 fw-bold mb-0 text-white">{{ comp.name }}</h4>
+                <span class="badge text-bg-dark border border-secondary" style="font-size: 0.68rem;">{{ comp.ctc_breakdown.total }}</span>
+              </div>
+              <p class="small text-muted mb-3" style="font-size: 0.78rem; min-height: 2.2rem;">
+                {{ comp.role }}
+              </p>
+            </div>
+            <div>
+              <a href="{{ url_for('assessment_page', tab='company', company=comp.slug) }}"
+                 class="btn btn-sm btn-success w-100 fw-bold py-1 px-2 d-flex justify-content-between align-items-center"
+                 style="background: #10b981; border-color: #059669; font-size: 0.8rem;">
+                <span>Placement Papers</span>
+                <span>&rarr;</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% endif %}
+
+  </div>
+</div>
+
+{# Client-side filter script for companies and assessment pager logic #}
+<script>
+(function() {
+  const searchInput = document.getElementById("company-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", function() {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll(".company-card-col").forEach(col => {
+        const name = col.getAttribute("data-company-name") || "";
+        col.style.display = name.includes(q) ? "" : "none";
+      });
+    });
+  }
+
+  const modeTabs = document.querySelectorAll("#assessmentModeTabs button[data-bs-toggle='pill']");
+  modeTabs.forEach(btn => {
+    btn.addEventListener("shown.bs.tab", function(e) {
+      const targetId = e.target.getAttribute("aria-controls");
+      const tabParam = targetId === "pane-company" ? "company" : "general";
+      const url = new URL(window.location);
+      url.searchParams.set("tab", tabParam);
+      window.history.replaceState({}, "", url);
+    });
+  });
+})();
+</script>
+
+{# ===================== VIEW 2: THE SKILL GAP RESULT PAGE ===================== #}
 {% elif view == 'result' %}
 
 <div class="mb-4">
@@ -252,9 +785,6 @@
     {% if result.average_score is not none %}&middot; Overall score <strong>{{ result.average_score }}%</strong>{% endif %}
     &middot; Average skill level <strong>{{ result.average_rating }} / 5</strong>
   </p>
-</div>
-
-{# Scores, derived ratings, and gaps #}
 <div class="card mb-4">
   <div class="card-header fw-semibold">Assessment scores, skill levels &amp; gaps</div>
   <div class="table-responsive">

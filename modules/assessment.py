@@ -29,10 +29,12 @@ import re
 import sqlite3
 from datetime import datetime
 
-from flask import current_app, redirect, render_template, request, session, url_for
+from flask import current_app, flash, redirect, render_template, request, session, url_for
 
 from database import db_session, fetch_all, fetch_one
+from modules import assessment_catalog as catalog
 from modules import auth as auth_module
+from modules import question_generator as qg
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -530,12 +532,28 @@ def get_latest_assessment(student_id, db_path=None):
 # ---------------------------------------------------------------------------
 # Step 4: the web page (called from the /assessment route in app.py)
 # ---------------------------------------------------------------------------
-def _render_form(form=None, errors=None, general_error=None, status=200, question_set=None):
+def _render_form(form=None, errors=None, general_error=None, status=200, question_set=None,
+                 active_tab="general", active_general_slug=None, active_company_slug=None,
+                 active_company_test_id=None, company_test_result=None, general_quiz_result=None):
     set_id = question_set if question_set in QUESTION_SETS else DEFAULT_SET_ID
     active_questions, questions_by_category = get_questions_for_set(set_id)
+
+    # General quizzes catalog
+    general_quizzes = catalog.GENERAL_QUIZZES
+    selected_general_quiz = catalog.GENERAL_QUIZ_BY_SLUG.get(active_general_slug)
+
+    # Company specific catalog
+    companies = catalog.COMPANIES
+    selected_company = catalog.COMPANY_BY_SLUG.get(active_company_slug)
+    active_company_test = qg.get_company_ai_test(active_company_test_id) if active_company_test_id else None
+
+    # Determine student to link with if logged in
+    gemini_status = qg.get_gemini_status()
+
     return render_template(
         "assessment.html",
         view="form",
+        active_tab=active_tab,
         categories=CATEGORIES,
         question_set=set_id,
         available_sets=AVAILABLE_SETS,
@@ -546,17 +564,158 @@ def _render_form(form=None, errors=None, general_error=None, status=200, questio
         form=form or {},
         errors=errors or {},
         general_error=general_error,
+        # Enhanced catalogs
+        general_quizzes=general_quizzes,
+        selected_general_quiz=selected_general_quiz,
+        companies=companies,
+        company_tiers=catalog.COMPANY_TIERS,
+        selected_company=selected_company,
+        active_company_test=active_company_test,
+        company_test_result=company_test_result,
+        general_quiz_result=general_quiz_result,
+        gemini_status=gemini_status,
     ), status
 
 
 def handle_assessment_request(db_path):
     """
-    GET  /assessment             -> show the alternating real-question assessment form
-    GET  /assessment?set=N       -> show specific question set N
-    GET  /assessment?student=ID  -> show that student's latest result
-    POST /assessment             -> validate answers, grade, save, redirect to result
+    GET  /assessment             -> show Skill Assessment hub with General & Company Specific tabs
+    POST /assessment             -> handle core 4-category assessment, 10 general quizzes,
+                                    or 15-question company-specific AI tests
     """
     if request.method == "POST":
+        action = (request.form.get("action") or "submit_assessment").strip()
+
+        # Action A: Submit one of the 10 General Topic Quizzes
+        if action == "submit_general_quiz":
+            quiz_slug = request.form.get("quiz_slug", "").strip()
+            quiz = catalog.GENERAL_QUIZ_BY_SLUG.get(quiz_slug)
+            if not quiz:
+                return redirect(url_for("assessment_page", tab="general"))
+
+            score = 0
+            review = []
+            for q in quiz["questions"]:
+                user_opt = (request.form.get(f"gq_{q['id']}") or "").strip().lower()
+                is_correct = (user_opt == q["answer"])
+                if is_correct:
+                    score += 1
+                review.append({
+                    "id": q["id"],
+                    "number": q["number"],
+                    "topic": q["topic"],
+                    "prompt": q["prompt"],
+                    "options": q["options"],
+                    "selected": user_opt,
+                    "answer": q["answer"],
+                    "is_correct": is_correct,
+                    "explanation": q["explanation"],
+                })
+
+            quiz_result = {
+                "quiz": quiz,
+                "score": score,
+                "total": len(quiz["questions"]),
+                "percentage": round((score / len(quiz["questions"])) * 100, 1),
+                "review": review,
+            }
+            return _render_form(
+                active_tab="general",
+                active_general_slug=quiz_slug,
+                general_quiz_result=quiz_result,
+            )
+
+        # Action B: Generate 15 Company-Specific Questions with Google Gemini
+        if action == "generate_company_ai_test":
+            company_slug = request.form.get("company_slug", "").strip()
+            company = catalog.COMPANY_BY_SLUG.get(company_slug)
+            if not company:
+                flash("Unknown company selected.", "warning")
+                return redirect(url_for("assessment_page", tab="company"))
+
+            logged_user = auth_module.get_logged_in_user(db_path)
+            student_id = logged_user.get("student_id") if logged_user else None
+
+            try:
+                test_record = qg.generate_company_ai_test(
+                    company=company,
+                    student_id=student_id,
+                    db_path=db_path,
+                )
+                flash(
+                    f"Generated 15 verified {company['name']} exam questions using Google Gemini!",
+                    "success",
+                )
+                return redirect(
+                    url_for(
+                        "assessment_page",
+                        tab="company",
+                        company=company_slug,
+                        company_test_id=test_record["test_id"],
+                    )
+                    + "#company-ai-test-runner"
+                )
+            except (RuntimeError, ValueError) as exc:
+                flash(str(exc), "warning")
+                return redirect(url_for("assessment_page", tab="company", company=company_slug))
+            except Exception as exc:
+                current_app.logger.warning("Company AI test generation failed: %s", exc)
+                flash("Could not generate Gemini test right now. Please verify your GEMINI_API_KEY in .env.", "warning")
+                return redirect(url_for("assessment_page", tab="company", company=company_slug))
+
+        # Action C: Submit 15-question Company AI Test
+        if action == "submit_company_ai_test":
+            test_id = request.form.get("test_id", type=int)
+            company_slug = request.form.get("company_slug", "").strip()
+            company = catalog.COMPANY_BY_SLUG.get(company_slug)
+            test_record = qg.get_company_ai_test(test_id, db_path=db_path)
+
+            if not test_record or not company:
+                flash("Could not find the test session.", "warning")
+                return redirect(url_for("assessment_page", tab="company", company=company_slug))
+
+            score = 0
+            questions = test_record["questions"]
+            review = []
+            for q in questions:
+                user_opt = (request.form.get(f"ct_{q['id']}") or "").strip().lower()
+                is_correct = (user_opt == q["answer"])
+                if is_correct:
+                    score += 1
+                review.append({
+                    "id": q["id"],
+                    "number": q["number"],
+                    "topic": q["topic"],
+                    "prompt": q["prompt"],
+                    "options": q["options"],
+                    "selected": user_opt,
+                    "answer": q["answer"],
+                    "is_correct": is_correct,
+                    "explanation": q["explanation"],
+                })
+
+            with db_session(db_path) as conn:
+                conn.execute(
+                    "UPDATE company_ai_tests SET score = ?, max_score = ? WHERE id = ?",
+                    (score, len(questions), test_id),
+                )
+
+            company_test_result = {
+                "test_id": test_id,
+                "company": company,
+                "score": score,
+                "total": len(questions),
+                "percentage": round((score / len(questions)) * 100, 1),
+                "review": review,
+            }
+            return _render_form(
+                active_tab="company",
+                active_company_slug=company_slug,
+                active_company_test_id=test_id,
+                company_test_result=company_test_result,
+            )
+
+        # Action D: Default 4-Category Full Skill Assessment Submission (CareerRide dataset)
         data, errors = validate_submission(request.form)
         if errors:
             return _render_form(
@@ -564,6 +723,7 @@ def handle_assessment_request(db_path):
                 errors=errors,
                 status=400,
                 question_set=data["question_set"],
+                active_tab="general",
             )
 
         try:
@@ -587,6 +747,7 @@ def handle_assessment_request(db_path):
                 status=500,
                 general_error="Sorry, your assessment could not be saved. Please try again.",
                 question_set=data["question_set"],
+                active_tab="general",
             )
         return redirect(url_for("assessment_page", student=saved["student_id"]))
 
@@ -625,6 +786,11 @@ def handle_assessment_request(db_path):
             question_set=question_set,
         ), 200
 
+    tab = request.args.get("tab") or "general"
+    company_slug = request.args.get("company")
+    general_slug = request.args.get("quiz")
+    company_test_id = request.args.get("company_test_id", type=int)
+
     requested_set = request.args.get("set", type=int)
     active_set = select_next_question_set(requested_set)
     logged_user = auth_module.get_logged_in_user(db_path)
@@ -634,4 +800,11 @@ def handle_assessment_request(db_path):
             "name": logged_user.get("full_name", ""),
             "email": logged_user.get("gmail", ""),
         }
-    return _render_form(form=prefill, question_set=active_set)
+    return _render_form(
+        form=prefill,
+        question_set=active_set,
+        active_tab=tab,
+        active_general_slug=general_slug,
+        active_company_slug=company_slug,
+        active_company_test_id=company_test_id,
+    )
